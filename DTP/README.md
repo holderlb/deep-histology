@@ -40,9 +40,12 @@ below.
 
     vips tiffsave highlighted_image.tif highlighted_image_pyramid --tile --pyramid --compression deflate --tile-width 256 --tile-height 256
 
-Files included:
+## Files included
+
 * dtp.py: DTP tool.
 * highlight.py: Generates image with DTP tiles highlighted.
 
-Authors: Colin Greeley and Larry Holder, Washington State University
+## Authors
+
+Colin Greeley and Larry Holder, Washington State University
 
