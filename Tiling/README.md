@@ -71,6 +71,5 @@ multiple times, once for each image, and collect all the tiles in one place.
 
 ## Author
 
-Larry Holder, Washington State University
-
+Larry Holder and Colin Greeley, Washington State University
 
