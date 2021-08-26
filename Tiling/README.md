@@ -43,7 +43,7 @@ for details. The typical command is:
 
 Usage: `python3 generatetiles2.py [--other] <image> <annotations>`
 
-The program generates tiles from the given <image> according to the given
+The program generates tiles from the given `<image>` according to the given
 <annotations>. The <annotations> file is a GeoJSON-formatted array from
 the QuPath program. Each annotation includes "geometry":"coordinates" of the
 points of a polygon encompassing a region, and "properties":"classification":"name"
