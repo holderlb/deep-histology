@@ -1,10 +1,8 @@
 # Deep Tissue Pathology (DTP) Tool
 
-Usage: `python3 dtp.py <image> <tissue_type> <tile_size>`
+Usage: `python3 dtp.py <image> <model> <tile_size>`
 
 Requires: python 3.8+, numpy, tensorflow, opencv-python, scikit-image, imagecodecs
-
-Authors: Colin Greeley and Larry Holder, Washington State University
 
 DTP identifies pathology in a given tissue image. The arguments to the script
 are as follows:
@@ -43,8 +41,8 @@ below.
     vips tiffsave highlighted_image.tif highlighted_image_pyramid --tile --pyramid --compression deflate --tile-width 256 --tile-height 256
 
 Files included:
+* dtp.py: DTP tool.
+* highlight.py: Generates image with DTP tiles highlighted.
 
-dtp.py: DTP tool.
-
-highlight.py: Generates image with DTP tiles highlighted.
+Authors: Colin Greeley and Larry Holder, Washington State University
 
