@@ -18,7 +18,7 @@ Run QuPath Groovy script (script1.groovy) from the command-line on the
 qpproj project file containing the annotations. For example, on a Mac,
 this command looks like:
 
-/Applications/QuPath-0.2.3.app/Contents/MacOS/QuPath-0.2.3 script --project=/path/to/qupath/project/project.qpproj script1.groovy
+    /Applications/QuPath-0.2.3.app/Contents/MacOS/QuPath-0.2.3 script --project=/path/to/qupath/project/project.qpproj script1.groovy
 
 The JSON files will be written to the current directory. Move them to the
 directory where the NDPI images reside.
@@ -49,24 +49,24 @@ the QuPath program. Each annotation includes "geometry":"coordinates" of the
 points of a polygon encompassing a region, and "properties":"classification":"name"
 of the pathology of the region. If a tile overlaps one region, but no others,
 then it is written to the directory named after that region's pathology. The amount
-of overlap necessary is controlled by the TILE\_OVERLAP variable.
+of overlap necessary is controlled by the `TILE_OVERLAP` variable.
 
 The tile images are stored in the `tiles/<pathology>` subdirectory. The tile image
 file name is of the form: `<image>_<NNNNN>.jpg`, where `<NNNNN>` is a unique 5-digit,
 0-padded number assigned to the tile image. The details about the tiles are
 appended to the file `tiles/tiles.csv` (image, location, pathology, color).
 
-If the optional --other argument is given, then the program also generates tiles
+If the optional `--other` argument is given, then the program also generates tiles
 that are nearby, but don't overlap, the annotation regions. The tiles are designated
-with pathology OTHER\_PATHOLOGY and color OTHER\_COLOR (defined below).
+with pathology `OTHER\_PATHOLOGY` and color `OTHER\_COLOR` (set in code).
 
-Finally, if the global variable gGenerateTiledImage=True, the program generates
+Finally, if the global variable `gGenerateTiledImage=True`, the program generates
 the image `<image>_tiles.tif` that shows all the generated tiles as rectangles
 colored according to their pathology.
 
 NOTE: This program does not remove existing tiles, will overwrite
 existing tiles with the same name, and will append tile information to
-an existing tiles/tiles.csv file. This allows you to run the program
+an existing `tiles/tiles.csv` file. This allows you to run the program
 multiple times, once for each image, and collect all the tiles in one place.
 
 Author: Larry Holder, Washington State University
