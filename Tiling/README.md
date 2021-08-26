@@ -31,7 +31,7 @@ images contain multiple versions of the image with different sizes. This first
 image is the largest, so we extract just that one using the ",0" suffix. So,
 the command looks like:
 
-	 ndpi2tiff $<$image$>$,0
+    ndpi2tiff <image>,0
 
 4. Generate tiles from TIFF images overlapping JSON regions.
 
@@ -39,20 +39,20 @@ Run the generatetiles.py script to generate tiles from the TIFF images
 according to the regions in the JSON file. See comments at top of script file
 for details. The typical command is:
 
-	python3 generatetiles.py --other '$<$image$>$.tif' '$<$image$>$.ndpi.annotations.json'
+    python3 generatetiles.py --other '<image>.tif' '<image>.ndpi.annotations.json'
 
-Usage: python3 generatetiles2.py [--other] $<$image$>$ $<$annotations$>$
+Usage: `python3 generatetiles2.py [--other] <image> <annotations>`
 
-The program generates tiles from the given $<$image$>$ according to the given
-$<$annotations$>$. The $<$annotations$>$ file is a GeoJSON-formatted array from
+The program generates tiles from the given <image> according to the given
+<annotations>. The <annotations> file is a GeoJSON-formatted array from
 the QuPath program. Each annotation includes "geometry":"coordinates" of the
 points of a polygon encompassing a region, and "properties":"classification":"name"
 of the pathology of the region. If a tile overlaps one region, but no others,
 then it is written to the directory named after that region's pathology. The amount
 of overlap necessary is controlled by the TILE\_OVERLAP variable.
 
-The tile images are stored in the tiles/$<$pathology$>$ subdirectory. The tile image
-file name is of the form: $<$image$>$\_$<$NNNNN$>$.jpg, where $<$NNNNN$>$ is a unique 5-digit,
+The tile images are stored in the tiles/<pathology> subdirectory. The tile image
+file name is of the form: <image>\_<NNNNN>.jpg, where <NNNNN> is a unique 5-digit,
 0-padded number assigned to the tile image. The details about the tiles are
 appended to the file tiles/tiles.csv (image, location, pathology, color).
 
@@ -61,7 +61,7 @@ that are nearby, but don't overlap, the annotation regions. The tiles are design
 with pathology OTHER\_PATHOLOGY and color OTHER\_COLOR (defined below).
 
 Finally, if the global variable gGenerateTiledImage=True, the program generates
-the image $<$image$>$\_tiles.tif that shows all the generated tiles as rectangles
+the image <image>\_tiles.tif that shows all the generated tiles as rectangles
 colored according to their pathology.
 
 NOTE: This program does not remove existing tiles, will overwrite
