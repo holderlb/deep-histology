@@ -44,24 +44,24 @@ for details. The typical command is:
 Usage: `python3 generatetiles2.py [--other] <image> <annotations>`
 
 The program generates tiles from the given `<image>` according to the given
-<annotations>. The <annotations> file is a GeoJSON-formatted array from
+`<annotations>`. The `<annotations>` file is a GeoJSON-formatted array from
 the QuPath program. Each annotation includes "geometry":"coordinates" of the
 points of a polygon encompassing a region, and "properties":"classification":"name"
 of the pathology of the region. If a tile overlaps one region, but no others,
 then it is written to the directory named after that region's pathology. The amount
 of overlap necessary is controlled by the TILE\_OVERLAP variable.
 
-The tile images are stored in the tiles/<pathology> subdirectory. The tile image
-file name is of the form: <image>\_<NNNNN>.jpg, where <NNNNN> is a unique 5-digit,
+The tile images are stored in the `tiles/<pathology>` subdirectory. The tile image
+file name is of the form: `<image>_<NNNNN>.jpg`, where `<NNNNN>` is a unique 5-digit,
 0-padded number assigned to the tile image. The details about the tiles are
-appended to the file tiles/tiles.csv (image, location, pathology, color).
+appended to the file `tiles/tiles.csv` (image, location, pathology, color).
 
 If the optional --other argument is given, then the program also generates tiles
 that are nearby, but don't overlap, the annotation regions. The tiles are designated
 with pathology OTHER\_PATHOLOGY and color OTHER\_COLOR (defined below).
 
 Finally, if the global variable gGenerateTiledImage=True, the program generates
-the image <image>\_tiles.tif that shows all the generated tiles as rectangles
+the image `<image>_tiles.tif` that shows all the generated tiles as rectangles
 colored according to their pathology.
 
 NOTE: This program does not remove existing tiles, will overwrite
