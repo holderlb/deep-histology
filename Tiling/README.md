@@ -69,6 +69,8 @@ existing tiles with the same name, and will append tile information to
 an existing `tiles/tiles.csv` file. This allows you to run the program
 multiple times, once for each image, and collect all the tiles in one place.
 
-Author: Larry Holder, Washington State University
+## Author
+
+Larry Holder, Washington State University
 
 
