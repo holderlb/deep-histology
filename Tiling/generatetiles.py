@@ -128,7 +128,7 @@ def intersects_one(polygon, polygon1, polygons):
     min_area = TILE_SIZE * TILE_SIZE * TILE_OVERLAP
     intersection = polygon.intersection(polygon1)
     area = intersection.area
-    if area < min_area:
+    if (area < min_area) and (polygon1.area >= min_area):
         return False
     for p in polygons:
         if p is polygon1:
