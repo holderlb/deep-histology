@@ -96,6 +96,17 @@ def parse_annotations(annotations_file_name):
     pathologies = []
     colors = []
     for annotation in annotations:
+        # Check for properly-formatted annotation
+        format_okay = True
+        if ("geometry" not in annotation) or ("properties" not in annotation):
+            format_okay = False
+        elif ("type" not in annotation["geometry"]) or ("coordinates" not in annotation["geometry"]) or ("classification" not in annotation["properties"]):
+            format_okay = False
+        elif ("name" not in annotation["properties"]["classification"]) or ("colorRGB" not in annotation["properties"]["classification"]):
+            format_okay = False
+        if not format_okay:
+            print("Improperly formatted annotation - skipping...")
+            continue
         geo_type = annotation["geometry"]["type"]
         if geo_type == 'Polygon':
             coordinates = annotation["geometry"]["coordinates"][0]
