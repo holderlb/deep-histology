@@ -1,15 +1,22 @@
 # Deep Tissue Pathology (DTP) Tool
 
-Usage: `python3 dtp.py <image> <model> <tile_size>`
+Usage: `python3 dtp.py <image> <tissue_type> <pathology> <gTileSize> [<highlighting>]`
 
 Requires: python 3.8+, numpy, tensorflow, opencv-python, scikit-image, imagecodecs
+Recommendation: running tensorflow-gpu with anaconda for faster runtime
 
 DTP identifies pathology in a given tissue image. The arguments to the script
 are as follows:
-* `<image>` is the image to be processed. See "Image Preprocessing" below.
-* `<model>` is the model to be used to classify the image.
-* `<tile_size>` is the tile size used to train the model and the size used
-  to tile the input image. This parameter is optional. The default is 256.
+* `<image>` path to the image to be processed.
+* `<tissue_type>` testis, prostate, or kidney.
+* `<pathology>` individual pathology that will be predicted by the classifier.
+* `<gTileSize>` is the tile size used to train the model and the size used
+   to tile the input image. This parameter is optional. The default is 256.
+* `<highlighting>` optional argument for the highlighting type. Default is
+  drawing boxes around diseased tiles.
+  For heatmap options, type in any of the colormap names from the following link:
+  <https://matplotlib.org/stable/tutorials/colors/colormaps.html>
+  Recommendations: plasma, gray, cividis
 
 DTP first tiles the image according to the `<tile_size>` into non-overlapping
 tiles and then classifies each tile as diseased or not. DTP outputs two files.
@@ -26,7 +33,7 @@ is the upper-left corner and w,h is the width and height of the tile.
 
 If the image to be processed is in NDPI format, then you need to extract the
 first image from the file. One option is to use the ndpi2tiff tool available
-from https://www.imnc.in2p3.fr/pagesperso/deroulers/software/ndpitools/. NDPI
+from <https://www.imnc.in2p3.fr/pagesperso/deroulers/software/ndpitools/>. NDPI
 images may contain multiple versions of the image with different sizes. The
 first image is usally the largest. To extract just the first image, use the
 ",0" suffix. So, the command looks like: `ndpi2tiff <image>,0`
@@ -44,6 +51,10 @@ below.
 
 * dtp.py: DTP tool.
 * highlight.py: Generates image with DTP tiles highlighted.
+* run.sh: automatically run DTP and highlighting tool for all pathologies
+  given tissue type and an image (Linux)
+* run.bat: automatically run DTP and highlighting tool for all pathologies
+  given tissue type and an image (Windows)
 
 ## Authors
 
