@@ -8,11 +8,12 @@
 # - <image> path to the image to be highlighted.
 # - <tiles> path to *tiles.csv output from dtp.py.
 # - <pathology> individual pathology that will be used to name the image.
-# - <highlighting> optional argument for the highlighting type. Default is
-#   drawing boxes around diseased tiles.
-#   For heatmap options, type in any of the colormap names from the following link:
-#   https://matplotlib.org/stable/tutorials/colors/colormaps.html
-#   Recommendations: plasma, gray, cividis
+# - <highlighting> optional argument for the highlighting type. If no argument is
+#  given, then boxes will be drawn around tiles which have been marked positive for
+#  disease.
+#  For heatmap options, set the argument to any of the colormap names from the following link:
+#  <https://matplotlib.org/stable/tutorials/colors/colormaps.html>
+#  Recommendations: plasma, gray, cividis
 #
 # Program draws a box on the image for each tile in <tiles> file and then writes
 # out the highlighted image. The <tiles> file should be a CSV file where each
@@ -56,7 +57,7 @@ def highlight_tiles2(image, tiles, colormap, downscale=4, heatmap_intensity=1):
         canvas[y1//downscale:y1//downscale+y_off//downscale, x1//downscale:x1//downscale+x_off//downscale] += prob
         prob_sum += prob
     canvas = np.clip(canvas, 0, 1)
-    canvas = cv2.resize(canvas, (canvas.shape[1]//128, canvas.shape[0]//128), interpolation=cv2.INTER_AREA)
+    canvas = cv2.resize(canvas, (canvas.shape[1]//4, canvas.shape[0]//4), interpolation=cv2.INTER_AREA)
     heatmap = np.uint8(255 * canvas)
     color = cm.get_cmap(colormap)
     colors = color(np.arange(256))[:, :3]

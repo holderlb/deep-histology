@@ -12,12 +12,17 @@
 # - <image> path to the image to be processed.
 # - <tissue_type> testis, prostate, or kidney.
 # - <pathology> individual pathology that will be predicted by the classifier.
+#   For example, if your tissue type is testis, the optional pathology arguments
+#   would be "atrophy", "maturation_arrest", or "vacuole". Automatic pathology
+#   assignment is given in the run.sh and run.bat files.
 # - <gTileSize> is the tile size used to train the model and the size used
-#   to tile the input image. This parameter is optional. The default is 256.
-# - <highlighting> optional argument for the highlighting type. Default is
-#   drawing boxes around diseased tiles.
-#   For heatmap options, type in any of the colormap names from the following link:
-#   https://matplotlib.org/stable/tutorials/colors/colormaps.html
+#   to tile the input image. The default is 256.
+# - <highlighting> optional argument for the highlighting type. If no argument is
+#   given, then boxes will be drawn around tiles which have been marked positive for
+#   disease. All possible arguments are the heatmap options described below.
+#   For heatmap options, set the argument to any of the color map names from the
+#   following link:
+#   <https://matplotlib.org/stable/tutorials/colors/colormaps.html>
 #   Recommendations: plasma, gray, cividis
 #
 # DTP first tiles the image according to the <gTileSize> into non-overlapping
