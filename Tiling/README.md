@@ -52,7 +52,7 @@ then it is written to the directory named after that region's pathology. The amo
 of overlap necessary is controlled by the `TILE_OVERLAP` variable.
 
 The tile images are stored in the `tiles/<pathology>` subdirectory. The tile image
-file name is of the form: `<image>_<NNNNN>.jpg`, where `<NNNNN>` is a unique 5-digit,
+file name is of the form: `<image>_<NNNNNN>.jpg`, where `<NNNNNN>` is a unique 6-digit,
 0-padded number assigned to the tile image. The details about the tiles are
 appended to the file `tiles/tiles.csv` (image, location, pathology, color).
 
@@ -69,7 +69,7 @@ existing tiles with the same name, and will append tile information to
 an existing `tiles/tiles.csv` file. This allows you to run the program
 multiple times, once for each image, and collect all the tiles in one place.
 
-## Author
+## Authors
 
 Larry Holder and Colin Greeley, Washington State University
 

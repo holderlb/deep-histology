@@ -11,7 +11,7 @@
 # of overlap necessary is controlled by the TILE_OVERLAP variable.
 #
 # The tile images are stored in the tiles/<pathology> subdirectory. The tile image
-# file name is of the form: <image>_<NNNNN>.jpg, where <NNNNN> is a unique 5-digit,
+# file name is of the form: <image>_<NNNNNN>.jpg, where <NNNNNN> is a unique 6-digit,
 # 0-padded number assigned to the tile image. The details about the tiles are
 # appended to the file tiles/tiles.csv (image, location, pathology, color).
 #
@@ -69,11 +69,9 @@ def write_tile(tile_num, image_file_name, tile, pathology, color):
     base_file_name_noext = os.path.splitext(base_file_name)[0]
     x,y,w,h = tile
     tile_img = gImage[y:(y+h), x:(x+w)]
-    tile_file_base_name = base_file_name_noext + '_' + str(tile_num).zfill(5) + '.png'
-    pathology1 = pathology.replace(' ','_')
-    pathology2 = pathology1.replace('*','')
+    tile_file_base_name = base_file_name_noext + '_' + str(tile_num).zfill(6) + '.png'
     # Create pathology directory if not there
-    tile_path = os.path.join('tiles', pathology2)
+    tile_path = os.path.join('tiles', pathology)
     if not os.path.exists(tile_path):
         os.makedirs(tile_path)
     tile_file_name = os.path.join(tile_path, tile_file_base_name)
@@ -84,7 +82,7 @@ def write_tile(tile_num, image_file_name, tile, pathology, color):
     with open(tiles_file,'a') as tf:
         line = base_file_name_noext
         line += ',' + str(x) + ',' + str(y) + ',' + str(w) + ',' + str(h)
-        line += ',' + pathology2
+        line += ',' + pathology
         line += ',' + str(color[0]) + ',' + str(color[1]) + ',' + str(color[2])
         tf.write(line + '\n')
 
@@ -121,6 +119,10 @@ def parse_annotations(annotations_file_name):
             sys.exit()
         polygon = Polygon(coordinates)
         pathology = annotation["properties"]["classification"]["name"]
+        pathology = pathology.replace(' ','_')
+        pathology = pathology.replace('*','')
+        pathology = pathology.replace('/','')
+        pathology = pathology.replace("'",'')
         colorRGB = annotation["properties"]["classification"]["colorRGB"]
         colorR = (colorRGB >> 16) & 255
         colorG = (colorRGB >> 8) & 255
