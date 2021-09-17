@@ -131,8 +131,9 @@ def parse_annotations(annotations_file_name):
         colors.append(color)
     return polygons, pathologies, colors
 
-def intersects_one(polygon, polygon1, polygons):
-    """Returns True if polygon intersects polygon1 by at least TILE_OVERLAP amount, but none of (polygons - polygon1)."""
+def intersects_one(polygon, polygon1, polygons): # not currently used
+    """Returns True if polygon intersects polygon1 by at least TILE_OVERLAP amount,
+    but none of (polygons - polygon1)."""
     global TILE_SIZE, TILE_OVERLAP
     if not polygon.intersects(polygon1):
         return False
@@ -148,7 +149,19 @@ def intersects_one(polygon, polygon1, polygons):
             return False
     return True
 
-def intersects_none(polygon, polygons):
+def intersects_enough(polygon, polygon1):
+    """Returns True if polygon intersects polygon1 by at least TILE_OVERLAP amount."""
+    global TILE_SIZE, TILE_OVERLAP
+    if not polygon.intersects(polygon1):
+        return False
+    min_area = TILE_SIZE * TILE_SIZE * TILE_OVERLAP
+    intersection = polygon.intersection(polygon1)
+    area = intersection.area
+    if (area < min_area) and (polygon1.area >= min_area):
+        return False
+    return True
+
+def intersects_none(polygon, polygons): # not currently used
     """Returns True if polygon intersects none of polygons."""
     for p in polygons:
         if polygon.intersects(p):
@@ -175,9 +188,9 @@ def tile_overlaps(tile, tiles):
             return True
     return False
 
-def compute_tiles(polygon, polygons, tile_size, tile_increment):
-    """Compute and return tiles (x,y,w,h) for all tiles in image overlapping polygon,
-    but not overlapping any others in polygons."""
+def compute_tiles(polygon, tile_size, tile_increment):
+    """Compute and return tiles (x,y,w,h) for all tiles in image significantly
+    overlapping polygon."""
     global gImage
     height, width, channels = gImage.shape
     (minx,miny,maxx,maxy) = polygon.bounds
@@ -194,7 +207,7 @@ def compute_tiles(polygon, polygons, tile_size, tile_increment):
     while y1 <= ymax:
         while x1 <= xmax:
             tile_polygon = Polygon([(x1,y1), (x1,y2), (x2,y2), (x2,y1)])
-            if intersects_one(tile_polygon, polygon, polygons):
+            if intersects_enough(tile_polygon, polygon):
                 tile = [x1, y1, tile_size, tile_size]
                 tiles.append(tile)
             x1 += tile_increment
@@ -273,7 +286,7 @@ def generate_tiles(image_file_name, annotations_file_name, tile_size, tile_incre
     polygons, pathologies, colors = parse_annotations(annotations_file_name)
     print("Generating tiles...", flush=True)
     for (polygon,pathology,color) in zip(polygons,pathologies,colors):
-        tiles = compute_tiles(polygon, polygons, tile_size, tile_increment)
+        tiles = compute_tiles(polygon, tile_size, tile_increment)
         for tile in tiles:
             other_tiles.append(tile)
             num_tiles += 1
