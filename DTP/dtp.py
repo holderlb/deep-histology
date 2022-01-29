@@ -1,6 +1,6 @@
-# Deep Tissue Pathology (DTP) Tool (v4)
+# Deep Tissue Pathology (DTP) Tool (v5)
 #
-# Usage: python3 dtp.py <image> <tissue_type> <pathology> <gTileSize> [<highlighting>]
+# Usage: python3 dtp.py <image> <tissue_type> <pathology> <gTileSize> [<downscale>]
 #
 # Requirements: "models" folder must be present in the same directory as dty.py.
 #               The classifier is loaded in automatically base on the tissue_type,
@@ -17,21 +17,16 @@
 #   assignment is given in the run.sh and run.bat files.
 # - <gTileSize> is the tile size used to train the model and the size used
 #   to tile the input image. The default is 256.
-# - <highlighting> optional argument for the highlighting type. If no argument is
-#   given, then boxes will be drawn around tiles which have been marked positive for
-#   disease. All possible arguments are the heatmap options described below.
-#   For heatmap options, set the argument to any of the color map names from the
-#   following link:
-#   <https://matplotlib.org/stable/tutorials/colors/colormaps.html>
-#   Recommendations: plasma, gray, cividis
+# - [<downscale>] optional variable for the factor in which the output image is
+#   downsampled. Since the output images are very large, this optional variable is
+#   usually necessary. This value can be any integer greater than zero. The default
+#   value is 4, meaning that the output heatmap image will be 0.25 times the resolution
+#   of the original input tif image.
 #
 # DTP first tiles the image according to the <gTileSize> into non-overlapping
 # tiles and then classifies each tile as diseased or not. DTP outputs two files.
 # One file <image>_<gTileSize>_dtp.jpg is the original image with diseased tiles
-# highlighted. Second file <image>_<gTileSize>_dtp.csv is a list of the diseased
-# tiles' bounding boxes using coordinates from the original image. Each line
-# contains x,y,w,h where x,y is the upper-left corner and w,h is the width
-# and height of the tile.
+# highlighted.
 #
 # Authors: Colin Greeley and Larry Holder, Washington State University
 
@@ -42,23 +37,26 @@ from skimage.io import imread, imsave
 from skimage.draw import rectangle_perimeter, set_color
 import cv2
 import matplotlib.cm as cm
+import matplotlib.pyplot as plt
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array, array_to_img
+import csv
+import gc
 
 # Global variables
 gTileSize = 256
 gTileIncrement = gTileSize
 gConfidence = 0.95 # threshold on Prob(diseased) for tile to be classified as diseased
-gHighlightImage = True
+downscale = 4
 
-def rescale(tile_image):
+def rescale(tile_image, size):
     """Rescale given tile image to 256x256, which is what network expects."""
-    return cv2.resize(tile_image, (256, 256), interpolation=cv2.INTER_AREA)
+    return cv2.resize(tile_image, (size, size), interpolation=cv2.INTER_AREA)
 
 def contains_too_much_background(tile_image):
-    """Return True if image contains more than 30% background color (off white)."""
+    """Return True if image contains more than 70% background color (off white)."""
     h,w,c = tile_image.shape
-    threshold = int(round(0.3 * h * w))
+    threshold = int(round(0.7 * h * w))
     lower = (201,201,201)
     upper = (255,255,255)
     bmask = cv2.inRange(tile_image, lower, upper)
@@ -66,7 +64,7 @@ def contains_too_much_background(tile_image):
         return True
     return False
 
-def process_image(image, model):
+def process_image(image, models):
     """Extracts tiles from image and returns bounding box of all diseased tiles."""
     global gTileSize, gTileIncrement
     height, width, channels = image.shape
@@ -74,32 +72,46 @@ def process_image(image, model):
     tile_count = 0
     x1 = y1 = 0
     x2 = y2 = gTileSize # yes, gTileSize, not (gTileSize - 1)
-    tiles = []
+    pred_tiles = []
     while y2 <= height: # yes, <=, not <
+        tile_images = []
+        locs = []
         while x2 <= width:
             tile_image = image[y1:y2, x1:x2]
             if (not contains_too_much_background(tile_image)):
-                #if (classify_tile(tile_image, model) == True):
-                prob = classify_tile(tile_image, model)
-                tiles.append((x1, y1, gTileSize, gTileSize, prob))
+                tile_images.append(tile_image)
+                locs.append((x1, y1))
             x1 += gTileIncrement
             x2 += gTileIncrement
             tile_count += 1
-            if (tile_count % 100) == 0:
+            if (tile_count % 1000) == 0:
                 print("  processed " + str(tile_count) + " of " + str(num_tiles) + " tiles", flush=True)
+        if len(tile_images) > 0:
+            tile_images, locs = filter_tiles(tile_images, locs, models[0], gTileSize//2)        # ignore filter
+        if len(tile_images) > 0:
+            probs = classify_tile(tile_images, locs, models[1])                           # disease classifier
+            pred_tiles.extend([(x1, y1, gTileSize, gTileSize, prob) for ((x1,y1), prob) in zip(locs, probs)])
         x1 = 0
         x2 = gTileSize
         y1 += gTileIncrement
         y2 += gTileIncrement
-    return tiles
+    return pred_tiles
 
-def classify_tile(tile_image, model):
+def filter_tiles(tile_images, locs, model, tile_size):
     """Returns the prediction value for all tiles: 0 < p(x) < 1"""
-    global gConfidence
-    scaled_tile_image = rescale(tile_image)
-    tiles = np.asarray([scaled_tile_image])
+    global gConfidence, gTileSize
+    scaled_tile_image = np.array([rescale(tile_image, tile_size) for tile_image in tile_images])
+    pred = model.predict(scaled_tile_image)
+    new_tiles = [sti for i, sti in enumerate(tile_images) if pred[i,1] > 0.5]
+    new_locs = [l for i, l in enumerate(locs) if pred[i,1] > 0.5]
+    return new_tiles, new_locs
+
+def classify_tile(tile_images, locs, model):
+    """Returns the prediction value for all tiles: 0 < p(x) < 1"""
+    global gConfidence, gTileSize
+    tiles = np.asarray(tile_images)
     pred = model.predict(tiles)
-    return pred[0][0]
+    return pred[:,0]
 
 def highlight_tiles(image, tiles):
     """Draws box on image around each tile (in x,y,w,h format) in tiles."""
@@ -113,19 +125,19 @@ def highlight_tiles(image, tiles):
                 rr,cc = rectangle_perimeter((y-offset,x-offset),end=(y+h+offset,x+w+offset))
                 set_color(image, (rr,cc), color)
 
-def highlight_tiles2(image, tiles, colormap, downscale=4, heatmap_intensity=1.0):
+def highlight_tiles2(image, tiles, colormap, downscale, heatmap_intensity=0.75):
     """Superimposes a heatmap onto the input image generated from the pathology predictions on each tile."""
-    global gTileSize, gTileIncrement, gHighlightImage
+    global gTileSize, gTileIncrement, gHighlightImage, gConfidence
     # Downscale to save memory and time
     image = cv2.resize(image, (image.shape[1]//downscale, image.shape[0]//downscale), interpolation=cv2.INTER_AREA)
-    canvas = np.zeros((image.shape[0], image.shape[1]))
+    heatmap = np.zeros((image.shape[0], image.shape[1]))
     prob_sum = 0
     for x1, y1, x_off, y_off, prob in tiles:
-        canvas[y1//downscale:y1//downscale+y_off//downscale, x1//downscale:x1//downscale+x_off//downscale] += prob
+        heatmap[y1//downscale:y1//downscale+y_off//downscale, x1//downscale:x1//downscale+x_off//downscale] += prob
         prob_sum += prob
-    canvas = np.clip(canvas, 0, 1)
-    canvas = cv2.resize(canvas, (canvas.shape[1]//(gTileSize/2), canvas.shape[0]//(gTileSize/2)), interpolation=cv2.INTER_AREA)
-    heatmap = np.uint8(255 * canvas)
+    heatmap = np.clip(heatmap, 0, 1)
+    heatmap = cv2.resize(heatmap, (heatmap.shape[1]//(gTileSize//4), heatmap.shape[0]//(gTileSize//4)), interpolation=cv2.INTER_AREA)
+    heatmap = np.uint8(255 * heatmap)
     color = cm.get_cmap(colormap)
     colors = color(np.arange(256))[:, :3]
     colored_heatmap = colors[heatmap]
@@ -135,41 +147,53 @@ def highlight_tiles2(image, tiles, colormap, downscale=4, heatmap_intensity=1.0)
     colored_heatmap = colored_heatmap.resize((image.shape[1], image.shape[0]))
     colored_heatmap = img_to_array(colored_heatmap)
     image = colored_heatmap * heatmap_intensity + image
-    print("Ratio of {} to non-{}: {}".format(sys.argv[3], sys.argv[3], round(prob_sum/len(tiles), 2)))
+    print("Ratio of {} to non-{}: {}".format(sys.argv[3], sys.argv[3], round(prob_sum/len(tiles), 5)))
     return image
 
+def read_tiles(tiles_file_name):
+    tiles = []
+    with open(tiles_file_name) as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter=',')
+        for row in csv_reader:
+            x = int(row[0])
+            y = int(row[1])
+            w = int(row[2])
+            h = int(row[3])
+            p = float(row[4])
+            tiles.append((x,y,w,h,p))
+    return tiles
+
 def main1():
-    global gTileSize, gTileIncrement, gHighlightImage
+    global gTileSize, gTileIncrement, downscale
     image_file_name = sys.argv[1]
     tissue_type = sys.argv[2]
     pathology = sys.argv[3]
     gTileSize = int(sys.argv[4])
     gTileIncrement = gTileSize
-    if len(sys.argv) <= 5:
-        highlighting = "boxes"
-    else:
-        highlighting = sys.argv[5]
+    if len(sys.argv) > 4:
+        downscale = int(sys.argv[5])
+    highlighting = "plasma"
     image_file_root = os.path.splitext(image_file_name)[0]
     print("Reading image...")
     image = imread(image_file_name)
     print("Loading model...")
-    model = load_model('./models/{}-{}{}.h5'.format(tissue_type, pathology, gTileSize))
+    ignore_model = load_model('./models/multiclass_models_v5/{}-{}{}.h5'.format(tissue_type, 'Ignore', gTileSize // 2))
+    model = load_model('./models/multiclass_models_v5/{}-{}{}.h5'.format(tissue_type, pathology, gTileSize))
     print("Classifying image...")
-    tiles = process_image(image, model)
+    tiles = process_image(image, (ignore_model, model))
     print("Writing diseased tiles CSV file...")
-    tile_loc_file_name = image_file_root + "_{}{}_tiles.csv".format(pathology, gTileSize)
-    with open(tile_loc_file_name, 'w') as f:
-        for tile in tiles:
-            f.write(",".join([str(x) for x in tile]) + '\n')
-    if gHighlightImage:
-        print("Highlighting diseased tiles in image...")
-        if highlighting == "boxes":
-            highlight_tiles(image, tiles)
-        else:
-            image = highlight_tiles2(image, tiles, highlighting)
-        output_image_file_name = image_file_root + "_{}{}_tiles.csv".format(pathology, gTileSize)
-        print("Writing highlighted image...")
-        imsave(output_image_file_name, image)
+
+    print("Highlighting diseased tiles in image...")
+    if highlighting == "boxes":
+        highlight_tiles(image, tiles)
+    else:
+        gc.collect()
+        image = highlight_tiles2(image, tiles, highlighting, downscale=downscale)
+        gc.collect()
+    output_image_file_name = image_file_root + "_{}_dtp.tif".format(pathology)
+    print("Writing highlighted image...")
+    image = array_to_img(image)
+    image.save(output_image_file_name, bitmap_format='tif')
     print("Done.")
 
 if __name__ == "__main__":
