@@ -1,8 +1,10 @@
 # Deep Tissue Pathology (DTP) Tool
 
-Usage: `python3 dtp.py <image> <tissue_type> <pathology> <gTileSize> [<highlighting>]`
+Easy Usage: `bash run_dtp.sh <image> <tissue_type>`\
+Advanced Usage: `python3 dtp.py <image> <tissue_type> <pathology> <gTileSize> [<downscale>]`\
+Advanced Usage: `python3 dtp_eval.py <image> <tissue_type> <pathology> <gTileSize> <annotations> [<downscale>]`
 
-Requires: python 3.8+, numpy, tensorflow, opencv-python, scikit-image, imagecodecs
+Requires: python 3.8+, numpy, tensorflow, opencv-python, scikit-image, imagecodecs\
 Recommendation: running tensorflow-gpu with anaconda for faster runtime
 
 DTP identifies pathology in a given tissue image. The arguments to the script
@@ -15,32 +17,37 @@ are as follows:
   assignment is given in the run.sh and run.bat files.
 * `<gTileSize>` is the tile size used to train the model and the size used
    to tile the input image. The default is 256.
-* `<highlighting>` optional argument for the highlighting type. If no argument is
-  given, then boxes will be drawn around tiles which have been marked positive for
-  disease. All possible arguments are the heatmap options described below.
-  For heatmap options, set the argument to any of the color map names from the
-  following link:
-  <https://matplotlib.org/stable/tutorials/colors/colormaps.html>
-  Recommendations: plasma, gray, cividis
+* `<annotations>` path the and ndpi.annotations.json file for the respective tif
+   image. This is used to overlay the "true" tiles on the image given from the
+   annotations.
+* `[<downscale>]` optional variable for the factor in which the output image is
+  downsampled. Since the output images are very large, this optional variable is
+  usually necessary. This value can be any integer greater than zero. The default
+  value is 4, meaning that the output heatmap image will be 0.25 times the resolution
+  of the original input tif image.
 
 DTP first tiles the image according to the `<tile_size>` into non-overlapping
-tiles and then classifies each tile as diseased or not. DTP outputs two files.
-One file `<image>_<tile_size>\_tile.tif` is the original image with diseased tiles
-highlighted. The highlighted tif image can be very large, so the DTP does not
-generate it by default (see `gHighlightImage` in dtp.py).
-You can also use the highlight.py program to generate the image. Also, see "Image
-Postprocessing" for compressing the large highlighted tif image. The second file
-`<image>_<tile_size>_tiles.csv` is a list of the diseased tiles' bounding boxes
-using coordinates from the original image. Each line contains x,y,w,h where x,y
-is the upper-left corner and w,h is the width and height of the tile.
+tiles and then classifies each tile as diseased or not. DTP outputs one image file,
+`<image>_<tile_size>\_tile.tif` is the original image with diseased tiles
+highlighted.
 
 ## Run program
+
 To automate the entire end-to-end process of using the DTP tool and highlighting
-the image, you can use the "run" files (see "files included" below). All that is
-required as arguments to run the program is an image, tissue type, and the
-optional color map described in the "highlighting" argument of DTP. The
+the image, you can use the "run_dtp" script (see "files included" below). All that is
+required as arguments to run the program is an image and tissue type. The
 rest is automatically taken care of. The output images will be written to the
 same directory as the input image.
+
+    bash run_dtp.sh ".\qupath\testis\tif\[#017] R18-964-17.tif" testis
+
+    or
+
+    python3 dtp.py "..\qupath\testis\tif\[#017] R18-964-17.tif" testis Atrophy 256
+
+    or
+
+    python3 dtp_eval.py "..\qupath\testis\tif\[#017] R18-964-17.tif" testis Atrophy 256 "..\qupath\testis\[#017] R18-964-17.ndpi.annotations.json"
 
 ## Image Preprocessing
 
@@ -51,23 +58,18 @@ images may contain multiple versions of the image with different sizes. The
 first image is usally the largest. To extract just the first image, use the
 ",0" suffix. So, the command looks like: `ndpi2tiff <image>,0`
 
-## Image Postprocessing
-
-The highlighted tif image can be very large. The vips program can reduce the
-size to some extent, and make the image easier to load into some bio-image
-tools, by converting to a pyramid format. One way to do this with vips is shown
-below.
-
     vips tiffsave highlighted_image.tif highlighted_image_pyramid --tile --pyramid --compression deflate --tile-width 256 --tile-height 256
 
 ## Files included
 
-* dtp.py: DTP tool.
-* highlight.py: Generates image with DTP tiles highlighted.
-* run.sh: automatically run DTP and highlighting tool for all pathologies
-  given tissue type, image, and optional color map (Linux)
-* run.bat: automatically run DTP and highlighting tool for all pathologies
-  given tissue type, image, and optional color map (Windows)
+* run_dtp.sh: automatically run DTP and highlighting tool for all pathologies
+  given tissue type and image.
+* dtp.py: DTP tool. Imposes a heatmap over an input image showing
+  classifier predictions.
+* dtp_eval.py: DTP evaluation tool. Imposes a heatmap over an input image showing
+  classifier predictions as well as drawing boxes around the "true" tiles that
+  overlap the given annotations.
+* highlight.py: DEPRECIATED. Generates image with DTP tiles highlighted.
 
 ## Authors
 
