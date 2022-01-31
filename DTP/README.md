@@ -22,7 +22,7 @@ are as follows:
    annotations.
 * `[<downscale>]` optional variable for the factor in which the output image is
   downsampled. Since the output images are very large, this optional variable is
-  usually necessary. This value can be any integer greater than zero. The default
+  usually necessary. This value can be any power of 2 greater than zero. The default
   value is 4, meaning that the output heatmap image will be 0.25 times the resolution
   of the original input tif image.
 
