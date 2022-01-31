@@ -19,7 +19,7 @@
 #   to tile the input image. The default is 256.
 # - [<downscale>] optional variable for the factor in which the output image is
 #   downsampled. Since the output images are very large, this optional variable is
-#   usually necessary. This value can be any integer greater than zero. The default
+#   usually necessary. This value can be any power of 2 greater than zero. The default
 #   value is 4, meaning that the output heatmap image will be 0.25 times the resolution
 #   of the original input tif image.
 #
@@ -102,8 +102,8 @@ def filter_tiles(tile_images, locs, model, tile_size):
     global gConfidence, gTileSize
     scaled_tile_image = np.array([rescale(tile_image, tile_size) for tile_image in tile_images])
     pred = model.predict(scaled_tile_image)
-    new_tiles = [sti for i, sti in enumerate(tile_images) if pred[i,1] > 0.5]
-    new_locs = [l for i, l in enumerate(locs) if pred[i,1] > 0.5]
+    new_tiles = [sti for i, sti in enumerate(tile_images) if pred[i,1] > gConfidence]
+    new_locs = [l for i, l in enumerate(locs) if pred[i,1] > gConfidence]
     return new_tiles, new_locs
 
 def classify_tile(tile_images, locs, model):
@@ -127,7 +127,7 @@ def highlight_tiles(image, tiles):
 
 def highlight_tiles2(image, tiles, colormap, downscale, heatmap_intensity=0.75):
     """Superimposes a heatmap onto the input image generated from the pathology predictions on each tile."""
-    global gTileSize, gTileIncrement, gHighlightImage, gConfidence
+    global gTileSize, gTileIncrement, gConfidence
     # Downscale to save memory and time
     image = cv2.resize(image, (image.shape[1]//downscale, image.shape[0]//downscale), interpolation=cv2.INTER_AREA)
     heatmap = np.zeros((image.shape[0], image.shape[1]))
@@ -147,7 +147,7 @@ def highlight_tiles2(image, tiles, colormap, downscale, heatmap_intensity=0.75):
     colored_heatmap = colored_heatmap.resize((image.shape[1], image.shape[0]))
     colored_heatmap = img_to_array(colored_heatmap)
     image = colored_heatmap * heatmap_intensity + image
-    print("Ratio of {} to non-{}: {}".format(sys.argv[3], sys.argv[3], round(prob_sum/len(tiles), 5)))
+    print("Ratio of {} to non-{}: {}".format(sys.argv[3], sys.argv[3], (prob_sum/len(tiles) if len(tiles) > 0 else 0)))
     return image
 
 def read_tiles(tiles_file_name):
@@ -170,7 +170,7 @@ def main1():
     pathology = sys.argv[3]
     gTileSize = int(sys.argv[4])
     gTileIncrement = gTileSize
-    if len(sys.argv) > 4:
+    if len(sys.argv) > 5:
         downscale = int(sys.argv[5])
     highlighting = "plasma"
     image_file_root = os.path.splitext(image_file_name)[0]
@@ -181,19 +181,14 @@ def main1():
     model = load_model('./models/multiclass_models_v5/{}-{}{}.h5'.format(tissue_type, pathology, gTileSize))
     print("Classifying image...")
     tiles = process_image(image, (ignore_model, model))
-    print("Writing diseased tiles CSV file...")
 
     print("Highlighting diseased tiles in image...")
-    if highlighting == "boxes":
-        highlight_tiles(image, tiles)
-    else:
-        gc.collect()
-        image = highlight_tiles2(image, tiles, highlighting, downscale=downscale)
-        gc.collect()
+    image = highlight_tiles2(image, tiles, highlighting, downscale=downscale)
+    gc.collect()
     output_image_file_name = image_file_root + "_{}_dtp.tif".format(pathology)
     print("Writing highlighted image...")
     image = array_to_img(image)
-    image.save(output_image_file_name, bitmap_format='tif')
+    image.save(output_image_file_name, compression="jpeg")
     print("Done.")
 
 if __name__ == "__main__":
