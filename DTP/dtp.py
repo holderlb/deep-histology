@@ -30,6 +30,7 @@
 #
 # Authors: Colin Greeley and Larry Holder, Washington State University
 
+import multiprocessing
 import os
 import sys
 import numpy as np
@@ -40,8 +41,15 @@ import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array, array_to_img
+import tensorflow as tf
 import csv
 import gc
+import time
+from pynvml import *
+from pynvml.smi import nvidia_smi
+nvsmi = nvidia_smi.getInstance()
+handle = nvmlDeviceGetHandleByIndex(0)
+gpu_mem = nvmlDeviceGetMemoryInfo(handle).free
 
 # Global variables
 gTileSize = 256
@@ -73,9 +81,9 @@ def process_image(image, models):
     x1 = y1 = 0
     x2 = y2 = gTileSize # yes, gTileSize, not (gTileSize - 1)
     pred_tiles = []
+    tile_images = []
+    locs = []
     while y2 <= height: # yes, <=, not <
-        tile_images = []
-        locs = []
         while x2 <= width:
             tile_image = image[y1:y2, x1:x2]
             if (not contains_too_much_background(tile_image)):
@@ -84,13 +92,16 @@ def process_image(image, models):
             x1 += gTileIncrement
             x2 += gTileIncrement
             tile_count += 1
+            if len(tile_images) * 256 * 256 * 3 > gpu_mem * 0.9 or tile_count == num_tiles:
+                if len(tile_images) > 0:
+                    tile_images, locs = filter_tiles(tile_images, locs, models[0], gTileSize//2)        # ignore filter
+                if len(tile_images) > 0:
+                    probs = classify_tile(tile_images, locs, models[1])                           # disease classifier
+                    pred_tiles.extend([(x1, y1, gTileSize, gTileSize, prob) for ((x1,y1), prob) in zip(locs, probs)])
+                tile_images = []
+                locs = []
             if (tile_count % 1000) == 0:
                 print("  processed " + str(tile_count) + " of " + str(num_tiles) + " tiles", flush=True)
-        if len(tile_images) > 0:
-            tile_images, locs = filter_tiles(tile_images, locs, models[0], gTileSize//2)        # ignore filter
-        if len(tile_images) > 0:
-            probs = classify_tile(tile_images, locs, models[1])                           # disease classifier
-            pred_tiles.extend([(x1, y1, gTileSize, gTileSize, prob) for ((x1,y1), prob) in zip(locs, probs)])
         x1 = 0
         x2 = gTileSize
         y1 += gTileIncrement
@@ -141,12 +152,15 @@ def highlight_tiles2(image, tiles, colormap, downscale, heatmap_intensity=0.75):
     color = cm.get_cmap(colormap)
     colors = color(np.arange(256))[:, :3]
     colored_heatmap = colors[heatmap]
+    del heatmap
+    del colors
+    gc.collect()
     #plt.imshow(colored_heatmap)
     #plt.show()
     colored_heatmap = array_to_img(colored_heatmap)
     colored_heatmap = colored_heatmap.resize((image.shape[1], image.shape[0]))
     colored_heatmap = img_to_array(colored_heatmap)
-    image = colored_heatmap * heatmap_intensity + image
+    image = np.add(colored_heatmap * heatmap_intensity, image)
     print("Ratio of {} to non-{}: {}".format(sys.argv[3], sys.argv[3], (prob_sum/len(tiles) if len(tiles) > 0 else 0)))
     return image
 
@@ -180,7 +194,9 @@ def main1():
     ignore_model = load_model('./models/multiclass_models_v5/{}-{}{}.h5'.format(tissue_type, 'Ignore', gTileSize // 2))
     model = load_model('./models/multiclass_models_v5/{}-{}{}.h5'.format(tissue_type, pathology, gTileSize))
     print("Classifying image...")
+    start = time.time()
     tiles = process_image(image, (ignore_model, model))
+    print("Processing Time:", time.time() - start, "seconds")
 
     print("Highlighting diseased tiles in image...")
     image = highlight_tiles2(image, tiles, highlighting, downscale=downscale)
