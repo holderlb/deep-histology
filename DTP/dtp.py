@@ -141,20 +141,17 @@ def highlight_tiles2(image, tiles, colormap, downscale, heatmap_intensity=0.75):
     global gTileSize, gTileIncrement, gConfidence
     # Downscale to save memory and time
     image = cv2.resize(image, (image.shape[1]//downscale, image.shape[0]//downscale), interpolation=cv2.INTER_AREA)
-    heatmap = np.zeros((image.shape[0], image.shape[1]))
+    heatmap = np.zeros((image.shape[0], image.shape[1]), dtype=np.uint8)
     prob_sum = 0
     for x1, y1, x_off, y_off, prob in tiles:
-        heatmap[y1//downscale:y1//downscale+y_off//downscale, x1//downscale:x1//downscale+x_off//downscale] += prob
+        heatmap[y1//downscale:y1//downscale+y_off//downscale, x1//downscale:x1//downscale+x_off//downscale] += np.uint8(prob * 255) if prob >= gConfidence else 0
         prob_sum += prob
-    heatmap = np.clip(heatmap, 0, 1)
-    heatmap = cv2.resize(heatmap, (heatmap.shape[1]//(gTileSize//4), heatmap.shape[0]//(gTileSize//4)), interpolation=cv2.INTER_AREA)
-    heatmap = np.uint8(255 * heatmap)
+    heatmap = np.clip(heatmap, 0, 255)
+    heatmap = cv2.resize(heatmap, (heatmap.shape[1]//(gTileSize//downscale), heatmap.shape[0]//(gTileSize//downscale)), interpolation=cv2.INTER_AREA)
+    #heatmap = np.uint8(255 * heatmap)
     color = cm.get_cmap(colormap)
     colors = color(np.arange(256))[:, :3]
     colored_heatmap = colors[heatmap]
-    del heatmap
-    del colors
-    gc.collect()
     #plt.imshow(colored_heatmap)
     #plt.show()
     colored_heatmap = array_to_img(colored_heatmap)
@@ -195,8 +192,9 @@ def main1():
     model = load_model('./models/multiclass_models_v5/{}-{}{}.h5'.format(tissue_type, pathology, gTileSize))
     print("Classifying image...")
     start = time.time()
-    tiles = process_image(image, (ignore_model, model))
-    print("Processing Time:", time.time() - start, "seconds")
+    #tiles = process_image(image, (ignore_model, model))
+    print("Processing Time:", round(time.time() - start, 2), "seconds")
+    tiles = read_tiles(image_file_root + "_{}256_tiles.csv".format(pathology))
 
     print("Highlighting diseased tiles in image...")
     image = highlight_tiles2(image, tiles, highlighting, downscale=downscale)
