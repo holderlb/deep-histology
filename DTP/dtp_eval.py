@@ -1,6 +1,6 @@
-# Deep Tissue Pathology (DTP) Tool (v5)
+# Deep Tissue Pathology Evaluation (DTPE) Tool (v5)
 #
-# Usage: python3 dtp.py <image> <tissue_type> <pathology> <gTileSize> [<downscale>]
+# Usage: python3 dtp_eval.py <image> <tissue_type> <pathology> <gTileSize> <annotations_file> [<downscale>]
 #
 # Requirements: "models" folder must be present in the same directory as dty.py.
 #               The classifier is loaded in automatically base on the tissue_type,
@@ -17,6 +17,9 @@
 #   assignment is given in the run.sh and run.bat files.
 # - <gTileSize> is the tile size used to train the model and the size used
 #   to tile the input image. The default is 256.
+# - <annotations_file> path the and ndpi.annotations.json file for the respective tif
+#   image. This is used to overlay the "true" tiles on the image given from the
+#   annotations.
 # - [<downscale>] optional variable for the factor in which the output image is
 #   downsampled. Since the output images are very large, this optional variable is
 #   usually necessary. This value can be any power of 2 greater than zero. The default
@@ -30,7 +33,6 @@
 #
 # Authors: Colin Greeley and Larry Holder, Washington State University
 
-import multiprocessing
 import os
 import sys
 import numpy as np
@@ -38,11 +40,13 @@ from skimage.io import imread, imsave
 from skimage.draw import rectangle_perimeter, set_color
 import cv2
 import matplotlib.cm as cm
-import matplotlib.pyplot as plt
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array, array_to_img
-import tensorflow as tf
-import csv
+import json
+from shapely.geometry import Polygon
+from skimage.io import imread, imsave
+from skimage.draw import rectangle_perimeter, set_color
+from skimage.transform import rescale
 import gc
 import time
 from pynvml import *
@@ -55,11 +59,71 @@ gpu_mem = nvmlDeviceGetMemoryInfo(handle).free
 gTileSize = 256
 gTileIncrement = gTileSize
 gConfidence = 0.95 # threshold on Prob(diseased) for tile to be classified as diseased
+gMinArea = 0.3
 downscale = 4
+
+
+def parse_annotations(annotations_file_name, pathology):
+    print("Reading annotations...", flush=True)
+    with open(annotations_file_name) as annotations_file:
+        annotations = json.load(annotations_file)
+    polygons = []
+    for annotation in annotations:
+        # Check for properly-formatted annotation
+        format_okay = True
+        if ("geometry" not in annotation) or ("properties" not in annotation):
+            format_okay = False
+        elif ("type" not in annotation["geometry"]) or ("coordinates" not in annotation["geometry"]) or ("classification" not in annotation["properties"]):
+            format_okay = False
+        elif ("name" not in annotation["properties"]["classification"]) or ("colorRGB" not in annotation["properties"]["classification"]):
+            format_okay = False
+        if not format_okay:
+            print("Improperly formatted annotation - skipping...")
+            continue
+        geo_type = annotation["geometry"]["type"]
+        if geo_type == 'Polygon':
+            coordinates = annotation["geometry"]["coordinates"][0]
+        elif geo_type == 'MultiPolygon':
+            # Typically one big polygon and a few little ones; use just the big one
+            multi_coordinates = annotation["geometry"]["coordinates"]
+            lengths = [len(x[0]) for x in multi_coordinates]
+            index = lengths.index(max(lengths))
+            coordinates = multi_coordinates[index][0]
+        else:
+            print("Unknown geometry type: " + geo_type)
+            sys.exit()
+        polygon = Polygon(coordinates)
+        name = annotation["properties"]["classification"]["name"]
+        name = name.replace(' ','_')
+        name = name.replace('*','')
+        name = name.replace('/','')
+        name = name.replace("'",'')
+        if pathology == name:
+            colorRGB = annotation["properties"]["classification"]["colorRGB"]
+            colorR = (colorRGB >> 16) & 255
+            colorG = (colorRGB >> 8) & 255
+            colorB = colorRGB & 255
+            color = (colorR, colorG, colorB)
+
+            polygons.append(polygon)
+            #pathologies.append(pathology)
+            #colors.append(color)
+    return polygons
 
 def rescale(tile_image, size):
     """Rescale given tile image to 256x256, which is what network expects."""
     return cv2.resize(tile_image, (size, size), interpolation=cv2.INTER_AREA)
+
+def intersects_enough(tile_polygon, polygon1):
+    """Returns True if polygon intersects polygon1 by at least TILE_OVERLAP amount."""
+    global gTileSize, gTileIncrement, gHighlightImage, gMinArea
+    if not tile_polygon.intersects(polygon1):
+        return False
+    min_area = gTileSize * gTileSize * gMinArea
+    intersection = tile_polygon.intersection(polygon1)
+    if intersection.area >= min_area or intersection.area == polygon1.area:
+        return True
+    return False
 
 def contains_too_much_background(tile_image):
     """Return True if image contains more than 70% background color (off white)."""
@@ -72,19 +136,26 @@ def contains_too_much_background(tile_image):
         return True
     return False
 
-def process_image(image, models):
+def process_image(image, models, annotations_file_name):
     """Extracts tiles from image and returns bounding box of all diseased tiles."""
-    global gTileSize, gTileIncrement
+    global gTileSize, gTileIncrement, gConfidence
     height, width, channels = image.shape
     num_tiles = int((height * width) / (gTileIncrement * gTileIncrement))
+    polygons = parse_annotations(annotations_file_name, sys.argv[3])
     tile_count = 0
     x1 = y1 = 0
     x2 = y2 = gTileSize # yes, gTileSize, not (gTileSize - 1)
+    true_tiles = []
     pred_tiles = []
     tile_images = []
     locs = []
     while y2 <= height: # yes, <=, not <
         while x2 <= width:
+            tile_polygon = Polygon([(x1,y1), (x1,y2), (x2,y2), (x2,y1)])
+            for polygon in polygons:
+                if intersects_enough(tile_polygon, polygon):
+                    tile = [x1, y1, gTileSize, gTileSize]
+                    true_tiles.append(tile)
             tile_image = image[y1:y2, x1:x2]
             if (not contains_too_much_background(tile_image)):
                 tile_images.append(tile_image)
@@ -106,7 +177,7 @@ def process_image(image, models):
         x2 = gTileSize
         y1 += gTileIncrement
         y2 += gTileIncrement
-    return pred_tiles
+    return (true_tiles, pred_tiles)
 
 def filter_tiles(tile_images, locs, model, tile_size):
     """Returns the prediction value for all tiles: 0 < p(x) < 1"""
@@ -124,17 +195,17 @@ def classify_tile(tile_images, locs, model):
     pred = model.predict(tiles)
     return pred[:,0]
 
-def highlight_tiles(image, tiles):
+def highlight_tiles(image, tiles, downscale):
     """Draws box on image around each tile (in x,y,w,h format) in tiles."""
     global gConfidence
     thickness = 5
     color = (0,255,0) # green
     for tile in tiles:
-        x,y,w,h,p = tile
-        if p > gConfidence:
-            for offset in range(thickness):
-                rr,cc = rectangle_perimeter((y-offset,x-offset),end=(y+h+offset,x+w+offset))
-                set_color(image, (rr,cc), color)
+        x,y,w,h = tile
+        x, y, w, h = x/downscale, y/downscale, w/downscale, h/downscale
+        for offset in range(thickness):
+            rr,cc = rectangle_perimeter((y-offset,x-offset),end=(y+h+offset,x+w+offset))
+            set_color(image, (rr,cc), color)
 
 def highlight_tiles2(image, tiles, colormap, downscale, heatmap_intensity=0.75):
     """Superimposes a heatmap onto the input image generated from the pathology predictions on each tile."""
@@ -157,22 +228,9 @@ def highlight_tiles2(image, tiles, colormap, downscale, heatmap_intensity=0.75):
     colored_heatmap = array_to_img(colored_heatmap)
     colored_heatmap = colored_heatmap.resize((image.shape[1], image.shape[0]))
     colored_heatmap = img_to_array(colored_heatmap)
-    image = np.add(colored_heatmap * heatmap_intensity, image)
-    print("Ratio of {} to non-{}: {}".format(sys.argv[3], sys.argv[3], (prob_sum/len(tiles) if len(tiles) > 0 else 0)))
-    return image
-
-def read_tiles(tiles_file_name):
-    tiles = []
-    with open(tiles_file_name) as csv_file:
-        csv_reader = csv.reader(csv_file, delimiter=',')
-        for row in csv_reader:
-            x = int(row[0])
-            y = int(row[1])
-            w = int(row[2])
-            h = int(row[3])
-            p = float(row[4])
-            tiles.append((x,y,w,h,p))
-    return tiles
+    image = colored_heatmap * heatmap_intensity + image
+    ratio = "Ratio of {} to non-{}: {}".format(sys.argv[3], sys.argv[3], (prob_sum/len(tiles) if len(tiles) > 0 else 0))
+    return image, ratio
 
 def main1():
     global gTileSize, gTileIncrement, downscale
@@ -180,9 +238,10 @@ def main1():
     tissue_type = sys.argv[2]
     pathology = sys.argv[3]
     gTileSize = int(sys.argv[4])
+    annotations_file_name = sys.argv[5]
     gTileIncrement = gTileSize
-    if len(sys.argv) > 5:
-        downscale = int(sys.argv[5])
+    if len(sys.argv) > 6:
+        downscale = int(sys.argv[6])
     highlighting = "plasma"
     image_file_root = os.path.splitext(image_file_name)[0]
     print("Reading image...")
@@ -192,15 +251,23 @@ def main1():
     model = load_model('./models/multiclass_models_v5/{}-{}{}.h5'.format(tissue_type, pathology, gTileSize))
     print("Classifying image...")
     start = time.time()
-    #tiles = process_image(image, (ignore_model, model))
+    true_tiles, pred_tiles = process_image(image, (ignore_model, model), annotations_file_name)
     print("Processing Time:", round(time.time() - start, 2), "seconds")
-    tiles = read_tiles(image_file_root + "_{}256_tiles.csv".format(pathology))
+    print("Predicted {} tiles: {}".format(pathology, [i[-1] > gConfidence for i in pred_tiles].count(True)))
+    print("Actual {} tiles: {}".format(pathology, len(true_tiles)))
 
     print("Highlighting diseased tiles in image...")
-    image = highlight_tiles2(image, tiles, highlighting, downscale=downscale)
     gc.collect()
+    image, ratio = highlight_tiles2(image, pred_tiles, highlighting, downscale=downscale)
+    gc.collect()
+    highlight_tiles(image, true_tiles, downscale=downscale)
     output_image_file_name = image_file_root + "_{}_dtp.tif".format(pathology)
+    output_data_file_name = image_file_root + "_{}_dtp.txt".format(pathology)
     print("Writing highlighted image...")
+    with open(output_data_file_name, 'w') as f:
+        f.write(ratio + '\n')
+        f.write("Predicted {} tiles: {}".format(pathology, [i[-1] > gConfidence for i in pred_tiles].count(True)) + '\n')
+        f.write("Actual {} tiles: {}".format(pathology, len(true_tiles)) + '\n')
     image = array_to_img(image)
     image.save(output_image_file_name, compression="jpeg")
     print("Done.")
