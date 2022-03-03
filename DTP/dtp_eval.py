@@ -33,6 +33,7 @@
 #
 # Authors: Colin Greeley and Larry Holder, Washington State University
 
+from math import ceil
 import os
 import sys
 import numpy as np
@@ -195,19 +196,32 @@ def classify_tile(tile_images, locs, model):
     pred = model.predict(tiles)
     return pred[:,0]
 
-def highlight_tiles(image, tiles, downscale):
+def highlight_true_tiles(image, tiles, downscale):
     """Draws box on image around each tile (in x,y,w,h format) in tiles."""
     global gConfidence
-    thickness = 5
+    thickness = int((tiles[0][-1] / downscale) * 0.05) 
     color = (0,255,0) # green
     for tile in tiles:
         x,y,w,h = tile
-        x, y, w, h = x/downscale, y/downscale, w/downscale, h/downscale
+        x, y, w, h = x/downscale, y/downscale, w/downscale - downscale/2, h/downscale - downscale/2
         for offset in range(thickness):
-            rr,cc = rectangle_perimeter((y-offset,x-offset),end=(y+h+offset,x+w+offset))
+            rr,cc = rectangle_perimeter((y+offset,x+offset),end=(y+h-offset,x+w-offset))
             set_color(image, (rr,cc), color)
 
-def highlight_tiles2(image, tiles, colormap, downscale, heatmap_intensity=0.75):
+def highlight_predictied_tiles(image, tiles, downscale):
+    """Draws box on image around each tile (in x,y,w,h format) in tiles."""
+    global gConfidence
+    thickness = int((tiles[0][-2] / downscale) * 0.05) 
+    color = (255,0,0) # yellow
+    for tile in tiles:
+        x,y,w,h,p = tile
+        if p >= gConfidence:
+            x, y, w, h = x/downscale + thickness, y/downscale + thickness, w/downscale - downscale/2 - thickness*2, h/downscale - downscale/2 - thickness*2
+            for offset in range(thickness):
+                rr,cc = rectangle_perimeter((y+offset,x+offset),end=(y+h-offset,x+w-offset))
+                set_color(image, (rr,cc), color)
+
+def generate_heatmap(image, tiles, colormap, downscale, heatmap_intensity=0.75):
     """Superimposes a heatmap onto the input image generated from the pathology predictions on each tile."""
     global gTileSize, gTileIncrement, gConfidence
     # Downscale to save memory and time
@@ -222,14 +236,14 @@ def highlight_tiles2(image, tiles, colormap, downscale, heatmap_intensity=0.75):
     #heatmap = np.uint8(255 * heatmap)
     color = cm.get_cmap(colormap)
     colors = color(np.arange(256))[:, :3]
-    colored_heatmap = colors[heatmap]
+    colored_heatmap = colors[heatmap].astype("float32")
     #plt.imshow(colored_heatmap)
     #plt.show()
-    colored_heatmap = array_to_img(colored_heatmap)
+    colored_heatmap = array_to_img(colored_heatmap, dtype=np.float32)
     colored_heatmap = colored_heatmap.resize((image.shape[1], image.shape[0]))
-    colored_heatmap = img_to_array(colored_heatmap)
+    colored_heatmap = img_to_array(colored_heatmap, dtype=np.float32)
     image = colored_heatmap * heatmap_intensity + image
-    ratio = "Ratio of {} to non-{}: {}".format(sys.argv[3], sys.argv[3], (prob_sum/len(tiles) if len(tiles) > 0 else 0))
+    ratio = "Ratio of {} to non-{} tissue: {}".format(sys.argv[3], sys.argv[3], (prob_sum/len(tiles) if len(tiles) > 0 else 0))
     return image, ratio
 
 def main1():
@@ -255,18 +269,24 @@ def main1():
     print("Processing Time:", round(time.time() - start, 2), "seconds")
     print("Predicted {} tiles: {}".format(pathology, [i[-1] > gConfidence for i in pred_tiles].count(True)))
     print("Actual {} tiles: {}".format(pathology, len(true_tiles)))
+    print("Writing diseased tiles CSV file...")
+    tile_loc_file_name = image_file_root + "_{}{}_tiles.csv".format(pathology, gTileSize)
+    with open(tile_loc_file_name, 'w') as f:
+        f.write(",".join(("x", "y", "width", "height", "probability")) + '\n')
+        for tile in pred_tiles:
+            f.write(",".join([str(x) for x in tile]) + '\n')
 
     print("Highlighting diseased tiles in image...")
-    gc.collect()
-    image, ratio = highlight_tiles2(image, pred_tiles, highlighting, downscale=downscale)
-    gc.collect()
-    highlight_tiles(image, true_tiles, downscale=downscale)
+    image, ratio = generate_heatmap(image, pred_tiles, highlighting, downscale=downscale)
+    highlight_true_tiles(image, true_tiles, downscale=downscale)
+    highlight_predictied_tiles(image, pred_tiles, downscale=downscale)
     output_image_file_name = image_file_root + "_{}_dtp.tif".format(pathology)
     output_data_file_name = image_file_root + "_{}_dtp.txt".format(pathology)
     print("Writing highlighted image...")
     with open(output_data_file_name, 'w') as f:
         f.write(ratio + '\n')
-        f.write("Predicted {} tiles: {}".format(pathology, [i[-1] > gConfidence for i in pred_tiles].count(True)) + '\n')
+        f.write("Predicted {} tiles with confidence > 0.95: {}".format(pathology, [i[-1] > gConfidence for i in pred_tiles].count(True)) + '\n')
+        f.write("Predicted {} tiles with confidence > 0.5: {}".format(pathology, [i[-1] > 0.5 for i in pred_tiles].count(True)) + '\n')
         f.write("Actual {} tiles: {}".format(pathology, len(true_tiles)) + '\n')
     image = array_to_img(image)
     image.save(output_image_file_name, compression="jpeg")
