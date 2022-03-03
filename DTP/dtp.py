@@ -136,7 +136,7 @@ def highlight_tiles(image, tiles):
                 rr,cc = rectangle_perimeter((y-offset,x-offset),end=(y+h+offset,x+w+offset))
                 set_color(image, (rr,cc), color)
 
-def highlight_tiles2(image, tiles, colormap, downscale, heatmap_intensity=0.75):
+def generate_heatmap(image, tiles, colormap, downscale, heatmap_intensity=0.75):
     """Superimposes a heatmap onto the input image generated from the pathology predictions on each tile."""
     global gTileSize, gTileIncrement, gConfidence
     # Downscale to save memory and time
@@ -158,8 +158,8 @@ def highlight_tiles2(image, tiles, colormap, downscale, heatmap_intensity=0.75):
     colored_heatmap = colored_heatmap.resize((image.shape[1], image.shape[0]))
     colored_heatmap = img_to_array(colored_heatmap)
     image = np.add(colored_heatmap * heatmap_intensity, image)
-    print("Ratio of {} to non-{}: {}".format(sys.argv[3], sys.argv[3], (prob_sum/len(tiles) if len(tiles) > 0 else 0)))
-    return image
+    ratio = "Ratio of {} to non-{} tissue: {}".format(sys.argv[3], sys.argv[3], (prob_sum/len(tiles) if len(tiles) > 0 else 0))
+    return image, ratio
 
 def read_tiles(tiles_file_name):
     tiles = []
@@ -192,15 +192,26 @@ def main1():
     model = load_model('./models/multiclass_models_v5/{}-{}{}.h5'.format(tissue_type, pathology, gTileSize))
     print("Classifying image...")
     start = time.time()
-    #tiles = process_image(image, (ignore_model, model))
+    tiles = process_image(image, (ignore_model, model))
     print("Processing Time:", round(time.time() - start, 2), "seconds")
-    tiles = read_tiles(image_file_root + "_{}256_tiles.csv".format(pathology))
+    print("Writing diseased tiles CSV file...")
+    tile_loc_file_name = image_file_root + "_{}{}_tiles.csv".format(pathology, gTileSize)
+    with open(tile_loc_file_name, 'w') as f:
+        f.write(",".join(("x", "y", "width", "height", "probability")) + '\n')
+        for tile in tiles:
+            f.write(",".join([str(x) for x in tile]) + '\n')
+    #tiles = read_tiles(image_file_root + "_{}256_tiles.csv".format(pathology))
 
     print("Highlighting diseased tiles in image...")
-    image = highlight_tiles2(image, tiles, highlighting, downscale=downscale)
+    image, ratio = generate_heatmap(image, tiles, highlighting, downscale=downscale)
     gc.collect()
     output_image_file_name = image_file_root + "_{}_dtp.tif".format(pathology)
+    output_data_file_name = image_file_root + "_{}_dtp.txt".format(pathology)
     print("Writing highlighted image...")
+    with open(output_data_file_name, 'w') as f:
+        f.write(ratio + '\n')
+        f.write("Predicted {} tiles with confidence > 0.95: {}".format(pathology, [i[-1] > gConfidence for i in tiles].count(True)) + '\n')
+        f.write("Predicted {} tiles with confidence > 0.5: {}".format(pathology, [i[-1] > 0.5 for i in tiles].count(True)) + '\n')
     image = array_to_img(image)
     image.save(output_image_file_name, compression="jpeg")
     print("Done.")
