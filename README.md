@@ -1,6 +1,6 @@
-# Histology
+# Deep Histology
 
-Research on machine learning for histology.
+Research on deep learning for histology.
 
 ## Deep Tissue Pathology (DTP) Tool
 
