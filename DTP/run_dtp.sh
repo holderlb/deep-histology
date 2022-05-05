@@ -3,8 +3,11 @@
 # Usage: bash run.sh <image> <tissue_type>
 # System: Linux/MacOS
 #
-# Script to automatically run each pathology classifier on an input image given the tissue type.
+# Script to automatically run all pathology classifiers for a known tissue type 
+# with pretrained models on an input image given.
 # Creates a highlighted image for each pathology corresponding to a tissue type.
+# This file can be added to by including your own additional tissue types with
+# corresponding pathologies.
 #
 # arg1: image location
 # arg2: tissue type     (testis, prostate, kidney)
