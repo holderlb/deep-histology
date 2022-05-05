@@ -1,6 +1,6 @@
 # Deep Tissue Pathology (DTP) Tool
 
-Easy Usage: `bash run_dtp.sh <image> <tissue_type>`\
+Easy Usage: `bash run_dtp.sh <image> <tissue_type>` (only for known tissue types and pathologies)\
 Advanced Usage: `python3 dtp.py <image> <tissue_type> <pathology> <gTileSize> [<downscale>]`\
 Advanced Usage: `python3 dtp_eval.py <image> <tissue_type> <pathology> <gTileSize> <annotations> [<downscale>]`
 
