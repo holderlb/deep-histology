@@ -1,0 +1,39 @@
+Results
+
+Average evaluation loss, accuracy, F1, and epochs score across 3 experiment iterations
+[1.93333333e-03 9.99566667e-01 9.81800000e-01 3.96666667e+01]
+
+Average confusion matrix across 3 experiment iterations
+[[  152     0]
+ [    5 12315]]
+
+
+
+Individual iteration results
+
+
+Iteration: 1
+Evaluation loss, accuracy, F1, and epochs:
+[0.0033, 0.9993, 0.9712, 36]
+
+Confusion matrix:
+[[  152     1]
+ [    8 12313]]
+
+
+Iteration: 2
+Evaluation loss, accuracy, F1, and epochs:
+[0.0017, 0.9997, 0.9871, 40]
+
+Confusion matrix:
+[[  153     0]
+ [    4 12317]]
+
+
+Iteration: 3
+Evaluation loss, accuracy, F1, and epochs:
+[0.0008, 0.9997, 0.9871, 43]
+
+Confusion matrix:
+[[  153     0]
+ [    4 12317]]
