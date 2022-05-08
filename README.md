@@ -11,7 +11,7 @@ model to classify the tiles. See `DTP` directory.
 
 Tool that is used to train deep convolutional nerual netowkrs on a tile dataset
 generated from the Tiling tool. Trained models are then used as input for 
-the DTP tool.
+the DTP tool. See `Training` directory.
 
 ## Tiling
 
