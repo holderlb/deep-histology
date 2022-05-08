@@ -69,7 +69,6 @@ first image is usally the largest. To extract just the first image, use the
 * dtp_eval.py: DTP evaluation tool. Imposes a heatmap over an input image showing
   classifier predictions as well as drawing boxes around the "true" tiles that
   overlap the given annotations.
-* highlight.py: DEPRECIATED. Generates image with DTP tiles highlighted.
 
 ## Authors
 
