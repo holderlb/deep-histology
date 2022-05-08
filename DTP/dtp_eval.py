@@ -43,6 +43,7 @@ import cv2
 import matplotlib.cm as cm
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array, array_to_img
+import tensorflow as tf
 import json
 from shapely.geometry import Polygon
 from skimage.io import imread, imsave
@@ -52,16 +53,22 @@ import gc
 import time
 from pynvml import *
 from pynvml.smi import nvidia_smi
-nvsmi = nvidia_smi.getInstance()
-handle = nvmlDeviceGetHandleByIndex(0)
-gpu_mem = nvmlDeviceGetMemoryInfo(handle).free
 
+physical_devices = tf.config.experimental.list_physical_devices('GPU')
+if len(physical_devices) > 0:
+    nvsmi = nvidia_smi.getInstance()
+    handle = nvmlDeviceGetHandleByIndex(0)
+    gpu_mem = nvmlDeviceGetMemoryInfo(handle).free
+else: 
+    gpu_mem = 10**10 # GPU not available, assume > 10 GB of RAM
+    
 # Global variables
 gTileSize = 256
 gTileIncrement = gTileSize
 gConfidence = 0.95 # threshold on Prob(diseased) for tile to be classified as diseased
 gMinArea = 0.3
 downscale = 4
+ensemble_size = 5
 
 
 def parse_annotations(annotations_file_name, pathology):
@@ -184,7 +191,9 @@ def filter_tiles(tile_images, locs, model, tile_size):
     """Returns the prediction value for all tiles: 0 < p(x) < 1"""
     global gConfidence, gTileSize
     scaled_tile_image = np.array([rescale(tile_image, tile_size) for tile_image in tile_images])
-    pred = model.predict(scaled_tile_image)
+    #pred = model.predict(scaled_tile_image)
+    pred = model([scaled_tile_image for _ in range(ensemble_size)])
+    pred = np.mean(pred, axis=0)
     new_tiles = [sti for i, sti in enumerate(tile_images) if pred[i,1] > gConfidence]
     new_locs = [l for i, l in enumerate(locs) if pred[i,1] > gConfidence]
     return new_tiles, new_locs
@@ -193,7 +202,9 @@ def classify_tile(tile_images, locs, model):
     """Returns the prediction value for all tiles: 0 < p(x) < 1"""
     global gConfidence, gTileSize
     tiles = np.asarray(tile_images)
-    pred = model.predict(tiles)
+    #pred = model.predict(tiles)
+    pred = model([tiles for _ in range(ensemble_size)])
+    pred = np.mean(pred, axis=0)
     return pred[:,0]
 
 def highlight_true_tiles(image, tiles, downscale):
@@ -261,8 +272,8 @@ def main1():
     print("Reading image...")
     image = imread(image_file_name)
     print("Loading model...")
-    ignore_model = load_model('../Training/models/{}/{}{}.h5'.format(tissue_type, 'Ignore', gTileSize // 2))
-    model = load_model('../Training/models/{}/{}{}.h5'.format(tissue_type, pathology, gTileSize))
+    ignore_model = load_model('./models/{}/{}{}.h5'.format(tissue_type, 'Ignore', gTileSize // 2))
+    model = load_model('./models/{}/{}{}.h5'.format(tissue_type, pathology, gTileSize))
     print("Classifying image...")
     start = time.time()
     true_tiles, pred_tiles = process_image(image, (ignore_model, model), annotations_file_name)
