@@ -30,7 +30,6 @@
 #
 # Authors: Colin Greeley and Larry Holder, Washington State University
 
-import multiprocessing
 import os
 import sys
 import numpy as np
@@ -47,15 +46,21 @@ import gc
 import time
 from pynvml import *
 from pynvml.smi import nvidia_smi
-nvsmi = nvidia_smi.getInstance()
-handle = nvmlDeviceGetHandleByIndex(0)
-gpu_mem = nvmlDeviceGetMemoryInfo(handle).free
+
+physical_devices = tf.config.experimental.list_physical_devices('GPU')
+if len(physical_devices) > 0:
+    nvsmi = nvidia_smi.getInstance()
+    handle = nvmlDeviceGetHandleByIndex(0)
+    gpu_mem = nvmlDeviceGetMemoryInfo(handle).free
+else: 
+    gpu_mem = 10**10 # GPU not available, assume > 10 GB of RAM
 
 # Global variables
 gTileSize = 256
 gTileIncrement = gTileSize
 gConfidence = 0.95 # threshold on Prob(diseased) for tile to be classified as diseased
 downscale = 4
+ensemble_size = 5
 
 def rescale(tile_image, size):
     """Rescale given tile image to 256x256, which is what network expects."""
@@ -92,7 +97,7 @@ def process_image(image, models):
             x1 += gTileIncrement
             x2 += gTileIncrement
             tile_count += 1
-            if len(tile_images) * 256 * 256 * 3 > gpu_mem * 0.9 or tile_count == num_tiles:
+            if len(tile_images) * 256 * 256 * 3 * ensemble_size > gpu_mem * 0.9 or tile_count == num_tiles:
                 if len(tile_images) > 0:
                     tile_images, locs = filter_tiles(tile_images, locs, models[0], gTileSize//2)        # ignore filter
                 if len(tile_images) > 0:
@@ -112,7 +117,9 @@ def filter_tiles(tile_images, locs, model, tile_size):
     """Returns the prediction value for all tiles: 0 < p(x) < 1"""
     global gConfidence, gTileSize
     scaled_tile_image = np.array([rescale(tile_image, tile_size) for tile_image in tile_images])
-    pred = model.predict(scaled_tile_image)
+    #pred = model.predict(scaled_tile_image)
+    pred = model([scaled_tile_image for _ in range(ensemble_size)])
+    pred = np.mean(pred, axis=0)
     new_tiles = [sti for i, sti in enumerate(tile_images) if pred[i,1] > gConfidence]
     new_locs = [l for i, l in enumerate(locs) if pred[i,1] > gConfidence]
     return new_tiles, new_locs
@@ -121,20 +128,10 @@ def classify_tile(tile_images, locs, model):
     """Returns the prediction value for all tiles: 0 < p(x) < 1"""
     global gConfidence, gTileSize
     tiles = np.asarray(tile_images)
-    pred = model.predict(tiles)
+    #pred = model.predict(tiles)
+    pred = model([tiles for _ in range(ensemble_size)])
+    pred = np.mean(pred, axis=0)
     return pred[:,0]
-
-def highlight_tiles(image, tiles):
-    """Draws box on image around each tile (in x,y,w,h format) in tiles."""
-    global gConfidence
-    thickness = 5
-    color = (0,255,0) # green
-    for tile in tiles:
-        x,y,w,h,p = tile
-        if p > gConfidence:
-            for offset in range(thickness):
-                rr,cc = rectangle_perimeter((y-offset,x-offset),end=(y+h+offset,x+w+offset))
-                set_color(image, (rr,cc), color)
 
 def generate_heatmap(image, tiles, colormap, downscale, heatmap_intensity=0.75):
     """Superimposes a heatmap onto the input image generated from the pathology predictions on each tile."""
@@ -165,13 +162,14 @@ def read_tiles(tiles_file_name):
     tiles = []
     with open(tiles_file_name) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
-        for row in csv_reader:
-            x = int(row[0])
-            y = int(row[1])
-            w = int(row[2])
-            h = int(row[3])
-            p = float(row[4])
-            tiles.append((x,y,w,h,p))
+        for i, row in enumerate(csv_reader):
+            if i > 0:
+                x = int(row[0])
+                y = int(row[1])
+                w = int(row[2])
+                h = int(row[3])
+                p = float(row[4])
+                tiles.append((x,y,w,h,p))
     return tiles
 
 def main1():
@@ -195,16 +193,15 @@ def main1():
     tiles = process_image(image, (ignore_model, model))
     print("Processing Time:", round(time.time() - start, 2), "seconds")
     print("Writing diseased tiles CSV file...")
-    tile_loc_file_name = image_file_root + "_{}{}_tiles.csv".format(pathology, gTileSize)
+    tile_loc_file_name = image_file_root + "_{}_tiles.csv".format(pathology)
     with open(tile_loc_file_name, 'w') as f:
         f.write(",".join(("x", "y", "width", "height", "probability")) + '\n')
         for tile in tiles:
             f.write(",".join([str(x) for x in tile]) + '\n')
-    #tiles = read_tiles(image_file_root + "_{}256_tiles.csv".format(pathology))
+    #tiles = read_tiles(image_file_root + "_{}_tiles.csv".format(pathology))
 
     print("Highlighting diseased tiles in image...")
     image, ratio = generate_heatmap(image, tiles, highlighting, downscale=downscale)
-    gc.collect()
     output_image_file_name = image_file_root + "_{}_dtp.tif".format(pathology)
     output_data_file_name = image_file_root + "_{}_dtp.txt".format(pathology)
     print("Writing highlighted image...")
