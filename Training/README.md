@@ -15,7 +15,7 @@ are described as follows:
 * `[<batch_size]` (Optional) Batch size for training neural networks
 
 The output of train program is a trained model in the "models" directory with the following path
-"models/<tissue_type>/<pathology><tile_size>.h5".
+"models/<tissue_type>/<pathology> <tile_size>.h5".
 
 ## Examples
 
