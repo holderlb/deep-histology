@@ -1,6 +1,6 @@
 # Model Training
 
-Usage: `python3 train.py --tile_dir --tissue_type --pathology --[tile_size] --[batch_size]`\
+Usage: `python3 train.py --tile_dir --tissue_type --pathology --[tile_size] --[batch_size]`
 
 Requires: python 3.8+, numpy, tensorflow 2.6+, opencv-python, scikit-image, imagecodecs, matplotlib\
 Recommendation: running tensorflow-gpu with anaconda for faster runtime
