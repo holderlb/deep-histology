@@ -1,23 +1,22 @@
 # generatetiles2.py
 #
-# Usage: python3 generatetiles2.py [--other] <image> <annotations>
+# Usage: python3 generatetiles2.py <image> <annotations>
 #
 # The program generates tiles from the given <image> according to the given
 # <annotations>. The <annotations> file is a GeoJSON-formatted array from
 # the QuPath program. Each annotation includes "geometry":"coordinates" of the
 # points of a polygon encompassing a region, and "properties":"classification":"name"
-# of the pathology of the region. If a tile overlaps one region, but no others,
+# of the pathology of the region. If a tile overlaps one region,
 # then it is written to the directory named after that region's pathology. The amount
 # of overlap necessary is controlled by the TILE_OVERLAP variable.
 #
+# The <annotations> file can also be a csv file that contains point coordinates.
+# The csv file requires the following headers/columns: pathology, x, y
+#
 # The tile images are stored in the tiles/<pathology> subdirectory. The tile image
-# file name is of the form: <image>_<NNNNNN>.jpg, where <NNNNNN> is a unique 6-digit,
+# file name is of the form: <image>_<NNNNN>.jpg, where <NNNNN> is a unique 5-digit,
 # 0-padded number assigned to the tile image. The details about the tiles are
 # appended to the file tiles/tiles.csv (image, location, pathology, color).
-#
-# If the optional --other argument is given, then the program also generates tiles
-# that are nearby, but don't overlap, the annotation regions. The tiles are designated
-# with pathology OTHER_PATHOLOGY and color OTHER_COLOR (defined below).
 #
 # Finally, if the global variable gGenerateTiledImage=True, the program generates
 # the image <image>_tiles.tif that shows all the generated tiles as rectangles
@@ -34,17 +33,16 @@ import os
 import sys
 import json
 import numpy as np
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, Point
 from skimage.io import imread, imsave
 from skimage.draw import rectangle_perimeter,set_color
 from skimage.transform import rescale
 import cv2
+import pandas as pd
 
-TILE_OVERLAP = 0.5 # Fraction of tile that must overlap region
+TILE_OVERLAP = 0.3 # Fraction of tile that must overlap region
 TILE_SIZE = 256 # width and height of tile images
-TILE_INCREMENT = 64
-OTHER_PATHOLOGY = 'Other'
-OTHER_COLOR = (255,255,255) # white
+TILE_INCREMENT = TILE_SIZE // 4
 
 # Global image variables
 gImage = None
@@ -69,24 +67,26 @@ def write_tile(tile_num, image_file_name, tile, pathology, color):
     base_file_name_noext = os.path.splitext(base_file_name)[0]
     x,y,w,h = tile
     tile_img = gImage[y:(y+h), x:(x+w)]
-    tile_file_base_name = base_file_name_noext + '_' + str(tile_num).zfill(6) + '.png'
+    tile_file_base_name = base_file_name_noext + '_' + str(tile_num).zfill(5)
+    pathology1 = pathology.replace(' ','_')
+    pathology2 = pathology1.replace('*','')
     # Create pathology directory if not there
-    tile_path = os.path.join('tiles', pathology)
+    tile_path = os.path.join('tiles', pathology2)
     if not os.path.exists(tile_path):
         os.makedirs(tile_path)
-    tile_file_name = os.path.join(tile_path, tile_file_base_name)
+    tile_file_name = os.path.join(tile_path, tile_file_base_name + '.png')
     # Save tile image
-    imsave(tile_file_name, tile_img)
+    imsave(tile_file_name, tile_img, check_contrast=False)
     # Append tile information to CSV file
     tiles_file = os.path.join('tiles','tiles.csv')
     with open(tiles_file,'a') as tf:
         line = base_file_name_noext
         line += ',' + str(x) + ',' + str(y) + ',' + str(w) + ',' + str(h)
-        line += ',' + pathology
+        line += ',' + pathology2
         line += ',' + str(color[0]) + ',' + str(color[1]) + ',' + str(color[2])
         tf.write(line + '\n')
 
-def parse_annotations(annotations_file_name):
+def parse_qupath_annotations(annotations_file_name):
     print("Reading annotations...", flush=True)
     with open(annotations_file_name) as annotations_file:
         annotations = json.load(annotations_file)
@@ -131,23 +131,31 @@ def parse_annotations(annotations_file_name):
         polygons.append(polygon)
         pathologies.append(pathology)
         colors.append(color)
-    return polygons, pathologies, colors
+    return polygons, pathologies
 
-def intersects_one(polygon, polygon1, polygons): # not currently used
-    """Returns True if polygon intersects polygon1 by at least TILE_OVERLAP amount,
-    but none of (polygons - polygon1)."""
+def parse_csv_annotations(annotations_file_name, polygon_radius=20):
+    df = pd.read_csv(annotations_file_name)
+    pathologies = df[df.keys()[0]].to_list()
+    x = df['x'].to_numpy()
+    y = df['y'].to_numpy()
+    coords = np.array(zip(x, y))
+    polygons = []
+    for coord in coords:
+        polygons.append(Point(coord[1], coord[0]).buffer(polygon_radius))
+    return polygons, pathologies
+
+def intersects_one(polygon, polygon1, polygons):
+    """Returns True if polygon intersects polygon1 by at least TILE_OVERLAP amount, but none of (polygons - polygon1)."""
     global TILE_SIZE, TILE_OVERLAP
     if not polygon.intersects(polygon1):
         return False
     min_area = TILE_SIZE * TILE_SIZE * TILE_OVERLAP
     intersection = polygon.intersection(polygon1)
     area = intersection.area
-    if (area < min_area) and (polygon1.area >= min_area):
+    if (area < min_area) and (area != polygon1.area):
         return False
     for p in polygons:
-        if p is polygon1:
-            continue
-        if polygon.intersects(p):
+        if polygon.intersects(p) and (p is not polygon1):
             return False
     return True
 
@@ -158,12 +166,12 @@ def intersects_enough(polygon, polygon1):
         return False
     min_area = TILE_SIZE * TILE_SIZE * TILE_OVERLAP
     intersection = polygon.intersection(polygon1)
-    area = intersection.area
-    if (area < min_area) and (polygon1.area >= min_area):
-        return False
-    return True
+    intersection_area = intersection.area
+    if (intersection_area >= min_area) or (intersection_area == polygon1.area):
+        return True    
+    return False
 
-def intersects_none(polygon, polygons): # not currently used
+def intersects_none(polygon, polygons):
     """Returns True if polygon intersects none of polygons."""
     for p in polygons:
         if polygon.intersects(p):
@@ -190,9 +198,9 @@ def tile_overlaps(tile, tiles):
             return True
     return False
 
-def compute_tiles(polygon, tile_size, tile_increment):
-    """Compute and return tiles (x,y,w,h) for all tiles in image significantly
-    overlapping polygon."""
+def compute_tiles(polygon, polygons, tile_size, tile_increment):
+    """Compute and return tiles (x,y,w,h) for all tiles in image overlapping polygon,
+    but not overlapping any others in polygons."""
     global gImage
     height, width, channels = gImage.shape
     (minx,miny,maxx,maxy) = polygon.bounds
@@ -209,7 +217,7 @@ def compute_tiles(polygon, tile_size, tile_increment):
     while y1 <= ymax:
         while x1 <= xmax:
             tile_polygon = Polygon([(x1,y1), (x1,y2), (x2,y2), (x2,y1)])
-            if intersects_enough(tile_polygon, polygon):
+            if intersects_one(tile_polygon, polygon, polygons):
                 tile = [x1, y1, tile_size, tile_size]
                 tiles.append(tile)
             x1 += tile_increment
@@ -220,43 +228,12 @@ def compute_tiles(polygon, tile_size, tile_increment):
         y2 += tile_increment
     return tiles
 
-def compute_other_tiles(polygon, polygons, tile_size, tile_increment):
-    """Compute and return tiles (x,y,w,h) that are nearby polygon, but do not overlap any polygons."""
-    global gImage
-    height, width, channels = gImage.shape
-    (minx,miny,maxx,maxy) = polygon.bounds
-    # Only consider tiles around and inside polygon
-    scale = 3 # might adjust scale to consider different sized nearby region
-    xmin = max(0, (int(minx) - (scale * tile_size)))
-    ymin = max(0, (int(miny) - (scale * tile_size)))
-    xmax = min((width - tile_size), (int(maxx) + (scale * tile_size)))
-    ymax = min((height - tile_size), (int(maxy) + (scale * tile_size)))
-    x1 = xmin
-    y1 = ymin
-    x2 = x1 + tile_size
-    y2 = y1 + tile_size
-    tiles = []
-    tile_increment = tile_size
-    while y1 <= ymax:
-        while x1 <= xmax:
-            tile_polygon = Polygon([(x1,y1), (x1,y2), (x2,y2), (x2,y1)])
-            tile = [x1, y1, tile_size, tile_size]
-            if intersects_bounds_none(tile_polygon, polygons) and not containsTooMuchBackground(tile):
-                tiles.append(tile)
-            x1 += tile_increment
-            x2 += tile_increment
-        x1 = xmin
-        x2 = x1 + tile_size
-        y1 += tile_increment
-        y2 += tile_increment
-    return tiles
-
 def containsTooMuchBackground(tile):
-    """Return True if tile contains more than 30% background color (off white)."""
+    """Return True if tile contains more than 70% background color (off white)."""
     global gImage
     x,y,w,h = tile
     tile_img = gImage[y:(y+h), x:(x+w)]
-    threshold = int(round(0.3 * h * w))
+    threshold = int(round(0.7 * h * w))
     lower = (201,201,201)
     upper = (255,255,255)
     bmask = cv2.inRange(tile_img,lower,upper)
@@ -281,39 +258,27 @@ def draw_rectangle(img, x, y, w, h, color, thickness=1):
         set_color(img, (rr,cc), color)
 
 def generate_tiles(image_file_name, annotations_file_name, tile_size, tile_increment):
-    global gGenerateTiledImage, gGenerateOther, OTHER_PATHOLOGY, OTHER_COLOR
+    global gGenerateTiledImage, OTHER_PATHOLOGY, OTHER_COLOR
     num_tiles = 0
-    other_tiles = []
-    tiles_and_colors = []
-    polygons, pathologies, colors = parse_annotations(annotations_file_name)
+    if ".json" in annotations_file_name:
+        polygons, pathologies = parse_qupath_annotations(annotations_file_name)
+    elif ".csv" in annotations_file_name:
+        polygons, pathologies = parse_csv_annotations(annotations_file_name)
+    else:
+        print(annotations_file_name.split('.')[-1], "file type not supported")
+        exit()
     print("Generating tiles...", flush=True)
-    for (polygon,pathology,color) in zip(polygons,pathologies,colors):
-        tiles = compute_tiles(polygon, tile_size, tile_increment)
+    for (polygon,pathology) in zip(polygons,pathologies):
+        tiles = compute_tiles(polygon, polygons, tile_size, tile_increment)
         for tile in tiles:
-            other_tiles.append(tile)
             num_tiles += 1
-            write_tile(num_tiles, image_file_name, tile, pathology, color)
-            tiles_and_colors.append([tile,color])
-    if gGenerateOther:
-        for polygon in polygons:
-            tiles = compute_other_tiles(polygon, polygons, tile_size, tile_increment)
-            for tile in tiles:
-                if not tile_overlaps(tile, other_tiles):
-                    other_tiles.append(tile)
-                    num_tiles += 1
-                    write_tile(num_tiles, image_file_name, tile, OTHER_PATHOLOGY, OTHER_COLOR)
-                    tiles_and_colors.append([tile,OTHER_COLOR])
-    if gGenerateTiledImage:
-        add_colored_rectangles(tiles_and_colors)
+            write_tile(num_tiles, image_file_name, tile, pathology)
     return num_tiles
 
 def main1():
     # Get image and annotations file names
-    global gImage, gGenerateTiledImage, TILE_SIZE, TILE_INCREMENT, gGenerateOther
+    global gImage, gGenerateTiledImage, TILE_SIZE, TILE_INCREMENT
     arg_index = 1
-    if sys.argv[arg_index] == '--other':
-        gGenerateOther = True
-        arg_index += 1
     image_file_name = sys.argv[arg_index]
     annotations_file_name = sys.argv[arg_index+1]
     print("Reading image \"" + image_file_name + "\"...", flush=True)
@@ -327,7 +292,7 @@ def main1():
         base_file_name_noext = os.path.splitext(base_file_name)[0]
         tile_image_file_name = base_file_name_noext + '_tiles.tif'
         print("Writing tiled image to " + tile_image_file_name + " ...", flush=True)
-        imsave(tile_image_file_name, gImage)
+        imsave(tile_image_file_name, gImage, check_contrast=False)
     print("Done.")
 
 if __name__ == '__main__':
