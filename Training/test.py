@@ -1,5 +1,5 @@
 """
-Model Training
+Model Evaluation
 
 Usage: python3 test.py <tile_dir> <tissue_type> <pathology> [<tile_size>] [<batch_size>]
 
