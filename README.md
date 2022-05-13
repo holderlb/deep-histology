@@ -2,7 +2,7 @@
 
 Research on deep learning for histology.
 
-## Deep Tissue Pathology (DTP) Tool
+## Deep Histology Classification (DHC) Tool
 
 Tool that tiles a tissue image and uses a pre-trained deep learning
 model to classify the tiles. See `DTP` directory.
@@ -11,7 +11,7 @@ model to classify the tiles. See `DTP` directory.
 
 Tool that is used to train deep convolutional nerual networks on a tile dataset
 generated from the Tiling tool. Trained models are then used as input for 
-the DTP tool. See `Training` directory.
+the DHC tool. See `Training` directory.
 
 ## Tiling
 
