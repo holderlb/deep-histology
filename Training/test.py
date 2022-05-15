@@ -1,9 +1,9 @@
 """
-Model Evaluation
+Model Testing
 
 Usage: python3 test.py <tile_dir> <tissue_type> <pathology> [<tile_size>] [<batch_size>]
 
-Used to train tile classifying models. The arguments to the script
+Used to test the performance of tile classifying models. The arguments to the script
 are as follows:
 - <tile_dir> Path to directory of tiles for training
 - <tissue_type> help='Name of the tissue type. i.e., "breast" tissue
@@ -31,6 +31,7 @@ import argparse
 import cv2
 import os
 import gc
+from imgaug import augmenters
     
 
 class HistoPathology_Classifier:
@@ -42,6 +43,8 @@ class HistoPathology_Classifier:
         self.pathology = pathology
         self.batch_size = batch_size
         self.ensemble_size = ensemble_size
+        self.input_names = ["input_{}".format(i+1) for i in range(self.ensemble_size)]
+        self.output_names = ["output_{}".format(i+1) for i in range(self.ensemble_size)]
         
     def freeze_model(self, m, block):
         m.trainable = True
@@ -69,7 +72,7 @@ class HistoPathology_Classifier:
         X = [cb(x) for x in ensemble_input]
         X = [layers.GlobalAveragePooling2D()(x) for x in X]
         X = [layers.Dropout(0.4)(x) for x in X]
-        output = [layers.Dense(2, activation='softmax')(x) for x in X]
+        output = [layers.Dense(2, activation='softmax', name="output_{}".format(i+1))(x) for i, x in enumerate(X)]
         model = Model(ensemble_input, output)
         model.compile(optimizer=optimizers.Adam(1e-4), loss=CategoricalCrossentropy(), metrics=[Precision(class_id=0, name='pr'), Recall(class_id=0, name="rc")])
         model.summary()
@@ -107,18 +110,20 @@ class HistoPathology_Classifier:
         print("Non_diseased images:", self.non_diseased_images.shape[0])
         print("Total images:", len(self.diseased_images) + len(self.non_diseased_images), '\n\n')
     
-    def setup_bagging_datasets(self):
-        self.d_train_idxs = [np.random.choice(len(self.diseased_images), len(self.diseased_images), replace=True) for _ in range(self.ensemble_size)]
-        self.nd_train_idxs = [np.random.choice(len(self.non_diseased_images), len(self.non_diseased_images), replace=True) for _ in range(self.ensemble_size)]
+    def setup_bagging_datasets(self, test_size=0.2):
+        d_test_ids = np.random.choice(len(self.diseased_images), len(self.diseased_images)*test_size)
+        nd_test_ids = np.random.choice(len(self.non_diseased_images), len(self.non_diseased_images)*test_size)
+        diseased_idxs = np.delete(np.arange(len(self.diseased_images)), d_test_ids)
+        non_diseased_idxs = np.delete(np.arange(len(self.non_diseased_images)), nd_test_ids)
+        self.d_train_idxs = [np.random.choice(diseased_idxs, len(self.diseased_images), replace=True) for _ in range(self.ensemble_size)]
+        self.nd_train_idxs = [np.random.choice(non_diseased_idxs, len(self.non_diseased_images), replace=True) for _ in range(self.ensemble_size)]
         
-        d_val_idxs = [np.setdiff1d(np.arange(len(self.diseased_images)), d_train_idx) for d_train_idx in self.d_train_idxs]
-        nd_val_idxs = [np.setdiff1d(np.arange(len(self.non_diseased_images)), nd_train_idx) for nd_train_idx in self.nd_train_idxs]
+        d_val_idxs = [np.setdiff1d(diseased_idxs, d_train_idx) for d_train_idx in self.d_train_idxs]
+        nd_val_idxs = [np.setdiff1d(non_diseased_idxs, nd_train_idx) for nd_train_idx in self.nd_train_idxs]
         d_min_val_length = np.min([len(d_val_idx) for d_val_idx in d_val_idxs])
         nd_min_val_length = np.min([len(nd_val_idx) for nd_val_idx in nd_val_idxs])
         self.d_val_idxs = [d_val_idx[:d_min_val_length] for d_val_idx in d_val_idxs]
         self.nd_val_idxs = [nd_val_idx[:nd_min_val_length] for nd_val_idx in nd_val_idxs]
-        d_test_ids = np.setdiff1d(np.arange(len(self.diseased_images)), np.unique(np.concatenate(self.d_train_idxs)))
-        nd_test_ids = np.setdiff1d(np.arange(len(self.non_diseased_images)), np.unique(np.concatenate(self.nd_train_idxs)))
         
         self.d_val_batch = ceil(self.batch_size * (d_min_val_length / (d_min_val_length + nd_min_val_length)))
         self.nd_val_batch = floor(self.batch_size * (nd_min_val_length / (d_min_val_length + nd_min_val_length)))
@@ -131,27 +136,35 @@ class HistoPathology_Classifier:
         return (test_data, test_labels)
         
     def train_generator(self, augment_data=False):
-        y = ([np.concatenate([[[1,0] for _ in range(self.batch_size//2)], [[0,1] for _ in range(self.batch_size//2)]], axis=0) for _ in range(self.ensemble_size)])
+        Y = ([np.concatenate([[[1,0] for _ in range(self.batch_size//2)], [[0,1] for _ in range(self.batch_size//2)]], axis=0) for _ in range(self.ensemble_size)])
+        x_dict = dict(zip(self.input_names, [None for _ in range(self.ensemble_size)]))
+        y_dict = dict(zip(self.output_names, [y for y in Y]))
+        rand_aug = augmenters.RandAugment(n=3)
         while True:
             d_samples = [self.diseased_images [np.random.choice(d_train_idx, self.batch_size//2)] for d_train_idx in self.d_train_idxs]
             nd_samples = [self.non_diseased_images [np.random.choice(nd_train_idx, self.batch_size//2)] for nd_train_idx in self.nd_train_idxs]
             X = [np.concatenate([d_sample, nd_sample], axis=0) for d_sample, nd_sample in zip(d_samples, nd_samples)]
             if augment_data:
-                X = [tf.image.random_flip_left_right(x) for x in X]
-                X = [tf.image.random_flip_up_down(x) for x in X]
-                X = [tf.image.random_brightness(x, 0.2) for x in X]
-                X = [tf.image.random_contrast(x, 0.7, 1.3) for x in X]
-                X = [tf.image.random_saturation(x, 0.8, 1.2) for x in X]
-                X = [tf.image.random_hue(x, 0.2) for x in X]
-            yield X, y
+                X = [rand_aug(images=x) for x in X]
+                #X = [tf.image.random_flip_left_right(x) for x in X]
+                #X = [tf.image.random_flip_up_down(x) for x in X]
+                #X = [tf.image.random_brightness(x, 0.2) for x in X]
+                #X = [tf.image.random_contrast(x, 0.7, 1.3) for x in X]
+                #X = [tf.image.random_saturation(x, 0.8, 1.2) for x in X]
+                #X = [tf.image.random_hue(x, 0.2) for x in X]
+            x_dict.update(zip(self.input_names, X))
+            yield x_dict, y_dict
              
     def val_generator(self):
-        y = ([np.concatenate([[[1,0] for _ in range(self.d_val_batch)], [[0,1] for _ in range(self.nd_val_batch)]], axis=0) for _ in range(self.ensemble_size)])
+        Y = ([np.concatenate([[[1,0] for _ in range(self.d_val_batch)], [[0,1] for _ in range(self.nd_val_batch)]], axis=0) for _ in range(self.ensemble_size)])
+        x_dict = dict(zip(self.input_names, [None for _ in range(self.ensemble_size)]))
+        y_dict = dict(zip(self.output_names, [y for y in Y]))
         while True:
             d_samples = [self.diseased_images [np.random.choice(d_val_idx, self.d_val_batch)] for d_val_idx in self.d_val_idxs]
             nd_samples = [self.non_diseased_images [np.random.choice(nd_val_idx, self.nd_val_batch)] for nd_val_idx in self.nd_val_idxs]
             X = [np.concatenate([d_sample, nd_sample], axis=0) for d_sample, nd_sample in zip(d_samples, nd_samples)]
-            yield X, y
+            x_dict.update(zip(self.input_names, X))
+            yield x_dict, y_dict
             
     def lr_scheduler(self, epoch, lr):
         if epoch == 0:
@@ -191,12 +204,18 @@ class HistoPathology_Classifier:
         (x_test, y_test) = self.setup_bagging_datasets()
         train_gen = self.train_generator(augment_data=True)
         val_gen = self.val_generator()
+        train_dataset = tf.data.Dataset.from_generator(lambda: train_gen, output_types=(dict(zip(self.input_names, [tf.uint8 for _ in range(self.ensemble_size)])), dict(zip(self.output_names, [tf.uint8 for _ in range(self.ensemble_size)]))))
+        val_dataset = tf.data.Dataset.from_generator(lambda: val_gen, output_types=(dict(zip(self.input_names, [tf.uint8 for _ in range(self.ensemble_size)])), dict(zip(self.output_names, [tf.uint8 for _ in range(self.ensemble_size)]))))
+        options = tf.data.Options()
+        options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.DATA
+        train_dataset = train_dataset.with_options(options)
+        val_dataset = val_dataset.with_options(options)
         
         es = EarlyStopping(monitor='val_loss', mode='min', patience=20, verbose=1, restore_best_weights=True)
         reduce = ReduceLROnPlateau(monitor='val_loss', mode='min', factor=0.1, patience=10, verbose=1)
         warmup = LearningRateScheduler(self.lr_scheduler)
         
-        history = model.fit(train_gen, steps_per_epoch=100, epochs=max_epochs, validation_data=val_gen, validation_steps=100, callbacks=[es, reduce, warmup], verbose=2).history
+        history = model.fit(train_dataset, steps_per_epoch=100, epochs=max_epochs, validation_data=val_dataset, validation_steps=100, callbacks=[es, reduce, warmup], verbose=2).history
         preds = self.predict(model, x_test)
         y_true = np.argmax(y_test, axis=-1)
         loss = log_loss(y_true, preds)
@@ -230,19 +249,18 @@ class HistoPathology_Classifier:
                 f.write(str(cm))
                 
     def plot_results(self, history):
-        ids = [''] + ['_'+str(i) for i in range(1, self.ensemble_size)]
         plt.figure()
         plt.title("{}-{}{} F1-score".format(self.tissue_type, self.pathology, self.tile_size))
         plt.xlabel("Epochs")
         plt.ylabel("F1-Score")
         for i in range(self.ensemble_size):
-            pr = history["val_dense{}_pr".format(ids[i])]
-            rc = history["val_dense{}_rc".format(ids[i])]
+            pr = history["val_output_{}_pr".format(i)]
+            rc = history["val_output_{}_rc".format(i)]
             f1v = 2 * (np.multiply(pr, rc) / np.add(pr, rc))
             plt.plot(range(len(f1v)), f1v, label="val_f1-{}".format(i+1))
         for i in range(self.ensemble_size):
-            pr = history["dense{}_pr".format(ids[i])]
-            rc = history["dense{}_rc".format(ids[i])]
+            pr = history["output_{}_pr".format(i)]
+            rc = history["output_{}_rc".format(i)]
             f1v = 2 * (np.multiply(pr, rc) / np.add(pr, rc))
             plt.plot(range(len(f1v)), f1v, label="val_f1-{}".format(i+1))
         plt.legend()
@@ -253,10 +271,10 @@ class HistoPathology_Classifier:
         plt.xlabel("Epochs")
         plt.ylabel("Loss")
         for i in range(self.ensemble_size):
-            loss = history["val_dense{}_loss".format(ids[i])]
+            loss = history["val_output_{}_loss".format(i)]
             plt.plot(range(len(loss)), loss, label="val_loss-{}".format(i+1))
         for i in range(self.ensemble_size):
-            loss = history["dense{}_loss".format(ids[i])]
+            loss = history["output_{}_loss".format(i)]
             plt.plot(range(len(loss)), loss, label="train_loss-{}".format(i+1))
         plt.legend()
         plt.savefig("./results/{}/{}{}_loss_results.png".format(self.tissue_type, self.pathology, self.tile_size))
@@ -280,7 +298,7 @@ def get_args():
     parser.add_argument('--tissue_type', type=str, required=True, help='Name of the tissue type. i.e., "breast" tissue')
     parser.add_argument('--pathology', type=str, required=True, help='Name of the pathology you want to classify. It will be the positive class for new binary classification model. Every other class will be treated as the negative class.')
     parser.add_argument('--tile_size', type=int, required=False, default=256, help='Resolution of tiles used for neural network input')
-    parser.add_argument('--batch_size', type=int, required=False, default=64, help='Batch size for training neural networks')
+    parser.add_argument('--batch_size', type=int, required=False, default=81, help='Batch size for training neural networks')
     return parser.parse_args()
 
     
@@ -292,7 +310,7 @@ if __name__ == "__main__":
     pathology = args.pathology
     tile_size = args.tile_size
     batch_size = args.batch_size
-    enseble_size = 3
+    enseble_size = 9
     if '/' in tissue_type:
         tissue_type = tissue_type.replace('/', '-')
         
