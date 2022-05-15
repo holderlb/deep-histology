@@ -299,6 +299,7 @@ def get_args():
     parser.add_argument('--pathology', type=str, required=True, help='Name of the pathology you want to classify. It will be the positive class for new binary classification model. Every other class will be treated as the negative class.')
     parser.add_argument('--tile_size', type=int, required=False, default=256, help='Resolution of tiles used for neural network input')
     parser.add_argument('--batch_size', type=int, required=False, default=81, help='Batch size for training neural networks')
+    parser.add_argument('--ensemble_size', type=int, required=False, default=9, help='Number of classifiers in ensemble')
     return parser.parse_args()
 
     
@@ -310,7 +311,7 @@ if __name__ == "__main__":
     pathology = args.pathology
     tile_size = args.tile_size
     batch_size = args.batch_size
-    enseble_size = 9
+    enseble_size = args.ensemble_size
     if '/' in tissue_type:
         tissue_type = tissue_type.replace('/', '-')
         
