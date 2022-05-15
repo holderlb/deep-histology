@@ -62,11 +62,11 @@ first image is usally the largest. To extract just the first image, use the
 
 ## Files included
 
-* run_heatmap_generator.sh: automatically run DTP and highlighting tool for all pathologies
+* run_heatmap_generator.sh: automatically run heatmap generation tool for all pathologies
   given tissue type and image.
-* generate_heatmap.py: DTP tool. Imposes a heatmap over an input image showing
+* generate_heatmap.py: Heatmap creation tool. Imposes a heatmap over an input image showing
   classifier predictions.
-* generate_heatmap-eval.py: DTP evaluation tool. Imposes a heatmap over an input image showing
+* generate_heatmap-eval.py: Heatmap creation with evaluation tool. Imposes a heatmap over an input image showing
   classifier predictions as well as drawing boxes around the "true" tiles that
   overlap the given annotations.
 
