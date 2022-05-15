@@ -1,7 +1,7 @@
 # Model Training
 
-Usage: `python3 train.py --tile_dir --tissue_type --pathology --[tile_size] --[batch_size]`\
-Usage: `python3 test.py --tile_dir --tissue_type --pathology --[tile_size] --[batch_size]`
+Usage: `python3 train.py --tile_dir --tissue_type --pathology --[tile_size] --[batch_size] --[ensemble_size]`\
+Usage: `python3 test.py --tile_dir --tissue_type --pathology --[tile_size] --[batch_size] --[ensemble_size]`
 
 Requires: python 3.8+, numpy, tensorflow 2.6+, opencv-python, scikit-image, imagecodecs, matplotlib\
 Recommendation: running tensorflow-gpu with anaconda for faster runtime
@@ -12,8 +12,9 @@ The arguments to the script are described as follows:
 * `<tissue_type>` help='Name of the tissue type. i.e., "breast" tissue
 * `<pathology>` Name of the pathology you want to classify. It will be the positive class for 
   new binary classification model. Every other class will be treated as the negative class
-* `[<tile_size>]` (Optional) Resolution of tiles used for neural network input
-* `[<batch_size]` (Optional) Batch size for training neural networks
+* `[<tile_size>]` (Optional) Resolution of tiles used for neural network input. (Default: 256)
+* `[<batch_size>]` (Optional) Batch size for training neural networks, preferably devisible by ensemble size. (Default: 81)
+* `[<ensemble_size>]` (Optional) Number of classifiers in ensemble, should be an odd number. (Default: 9)
 
 The output of train program is a trained model in the "models" directory with the following path
 "./models/`<tissue_type>`/`<pathology><tile_size>`.h5".
