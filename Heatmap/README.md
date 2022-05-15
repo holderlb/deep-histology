@@ -1,14 +1,14 @@
-# Deep Histology Classification (DTP) Tool
+# Heatmap Generation
 
-Easy Usage: `bash run_dtp.sh <image> <tissue_type>` (only for known tissue types and pathologies)\
-Advanced Usage: `python3 dtp.py <image> <tissue_type> <pathology> <gTileSize> [<downscale>]`\
-Advanced Usage: `python3 dtp_eval.py <image> <tissue_type> <pathology> <gTileSize> <annotations> [<downscale>]`
+Easy Usage: `bash run_heatmap_generator.sh <image> <tissue_type>` (only for known tissue types and pathologies)\
+Advanced Usage: `python3 generate_heatmap.py <image> <tissue_type> <pathology> <gTileSize> [<downscale>]`\
+Advanced Usage: `python3 generate_heatmap-eval.py <image> <tissue_type> <pathology> <gTileSize> <annotations> [<downscale>]`
 
 Requires: python 3.8+, numpy, tensorflow, opencv-python, scikit-image, imagecodecs\
 Recommendation: running tensorflow-gpu with anaconda for faster runtime
 
-DTP identifies pathology in a given tissue image. The arguments to the script
-are as follows:
+generate_geatmap identifies pathology locations in a given tissue image and highlights the 
+predicted areas in the output heatmap iamge. The arguments to the script are as follows:
 * `<image>` path to the image to be processed. See "Image preprocessing" below.
 * `<tissue_type>` testis, prostate, or kidney.
 * `<pathology>` individual pathology that will be predicted by the classifier.
@@ -26,28 +26,28 @@ are as follows:
   value is 4, meaning that the output heatmap image will be 0.25 times the resolution
   of the original input tif image.
 
-DTP first tiles the image according to the `<tile_size>` into non-overlapping
+The heatmap generator first tiles the image according to the `<tile_size>` into non-overlapping
 tiles and then classifies each tile as diseased or not. DTP outputs one image file,
 `<image>_<tile_size>\_tile.tif` is the original image with diseased tiles
 highlighted.
 
 ## Run program
 
-To automate the entire end-to-end process of using the DTP tool and highlighting
-the image, you can use the "run_dtp" script (see "files included" below). All that is
-required as arguments to run the program is an image and tissue type. The
+To automate the entire end-to-end process of using the heatmap generator tool, 
+you can use the "run_heatmap_generator" script (see "files included" below). All that 
+is required as arguments to run the program is an image and tissue type. The
 rest is automatically taken care of. The output images will be written to the
 same directory as the input image.
 
-    bash run_dtp.sh ".\qupath\testis\tif\[#017] R18-964-17.tif" testis
+    bash run_heatmap_generator.sh ".\qupath\testis\tif\[#017] R18-964-17.tif" testis
 
     or
 
-    python3 dtp.py "..\qupath\testis\tif\[#017] R18-964-17.tif" testis Atrophy 256
+    python3 generate_heatmap.py "..\qupath\testis\tif\[#017] R18-964-17.tif" testis Atrophy 256
 
     or
 
-    python3 dtp_eval.py "..\qupath\testis\tif\[#017] R18-964-17.tif" testis Atrophy 256 "..\qupath\testis\[#017] R18-964-17.ndpi.annotations.json"
+    python3 generate_heatmap-eval.py "..\qupath\testis\tif\[#017] R18-964-17.tif" testis Atrophy 256 "..\qupath\testis\[#017] R18-964-17.ndpi.annotations.json"
 
 ## Image Preprocessing
 
@@ -62,11 +62,11 @@ first image is usally the largest. To extract just the first image, use the
 
 ## Files included
 
-* run_dtp.sh: automatically run DTP and highlighting tool for all pathologies
+* run_heatmap_generator.sh: automatically run DTP and highlighting tool for all pathologies
   given tissue type and image.
-* dtp.py: DTP tool. Imposes a heatmap over an input image showing
+* generate_heatmap.py: DTP tool. Imposes a heatmap over an input image showing
   classifier predictions.
-* dtp_eval.py: DTP evaluation tool. Imposes a heatmap over an input image showing
+* generate_heatmap-eval.py: DTP evaluation tool. Imposes a heatmap over an input image showing
   classifier predictions as well as drawing boxes around the "true" tiles that
   overlap the given annotations.
 
