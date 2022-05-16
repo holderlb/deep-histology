@@ -13,7 +13,7 @@ The arguments to the script are described as follows:
 * `<pathology>` Name of the pathology you want to classify. It will be the positive class for 
   new binary classification model. Every other class will be treated as the negative class
 * `[<tile_size>]` (Optional) Resolution of tiles used for neural network input. (Default: 256)
-* `[<batch_size>]` (Optional) Batch size for training neural networks, preferably devisible by ensemble size. (Default: 81)
+* `[<batch_size>]` (Optional) Batch size for training neural networks, preferably devisible by ensemble size. (Default: 90)
 * `[<ensemble_size>]` (Optional) Number of classifiers in ensemble, should be an odd number. (Default: 9)
 
 The output of train program is a trained model in the "models" directory with the following path
