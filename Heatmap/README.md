@@ -1,32 +1,25 @@
 # Heatmap Generation
 
-Easy Usage: `bash run_heatmap_generator.sh <image> <tissue_type>` (only for known tissue types and pathologies)\
-Advanced Usage: `python3 generate_heatmap.py <image> <tissue_type> <pathology> <gTileSize> [<downscale>]`\
-Advanced Usage: `python3 generate_heatmap-eval.py <image> <tissue_type> <pathology> <gTileSize> <annotations> [<downscale>]`
+Usage: `python3 generate_geatmap.py --image --pathology_colors --tissue_type --pathologies --[tile_size] --[downscale]`
 
 Requires: python 3.8+, numpy, tensorflow, opencv-python, scikit-image, imagecodecs\
 Recommendation: running tensorflow-gpu with anaconda for faster runtime
 
 generate_geatmap identifies pathology locations in a given tissue image and highlights the 
 predicted areas in the output heatmap iamge. The arguments to the script are as follows:
-* `<image>` path to the image to be processed. See "Image preprocessing" below.
-* `<tissue_type>` testis, prostate, or kidney.
-* `<pathology>` individual pathology that will be predicted by the classifier.
-  For example, if your tissue type is testis, the optional pathology arguments
-  would be "atrophy", "maturation_arrest", or "vacuole". Automatic pathology
-  assignment is given in the run.sh and run.bat files.
-* `<gTileSize>` is the tile size used to train the model and the size used
+* `--image` Path to the image to be processed. See "Image preprocessing" below.
+* `--pathology_colors` Path to colors file created from "generatetiles.py". Color information for tiles is stored here.
+* `--tissue_type` Name of the tissue type. i.e., "breast" tissue
+* `--pathologies` Names of the pathologies you want to classify. Same as pathologies used for training.
+* `--tile_size` Optional. Is the tile size used to train the model and the size used
    to tile the input image. The default is 256.
-* `<annotations>` path the and ndpi.annotations.json file for the respective tif
-   image. This is used to overlay the "true" tiles on the image given from the
-   annotations.
-* `[<downscale>]` optional variable for the factor in which the output image is
+* `--downscale` Optional. Integer ariable for the factor in which the output image is
   downsampled. Since the output images are very large, this optional variable is
   usually necessary. This value can be any power of 2 greater than zero. The default
   value is 4, meaning that the output heatmap image will be 0.25 times the resolution
   of the original input tif image.
 
-The heatmap generator first tiles the image according to the `<tile_size>` into non-overlapping
+The heatmap generator first tiles the image according to the `<tile_size>` into overlapping
 tiles and then classifies each tile as diseased or not. DTP outputs one image file,
 `<image>_<tile_size>\_tile.tif` is the original image with diseased tiles
 highlighted.
@@ -39,15 +32,8 @@ is required as arguments to run the program is an image and tissue type. The
 rest is automatically taken care of. The output images will be written to the
 same directory as the input image.
 
-    bash run_heatmap_generator.sh ".\qupath\testis\tif\[#017] R18-964-17.tif" testis
+    python .\generate_heatmapV2.py --image "..\qupath\testis\tif\[#017] R18-964-17.tif" --pathology_colors ..\qupath\testis\tiles\colors.json --tissue_type testis --pathologies Ignore Atrophy Maturation_arrest Vacuole
 
-    or
-
-    python3 generate_heatmap.py "..\qupath\testis\tif\[#017] R18-964-17.tif" testis Atrophy 256
-
-    or
-
-    python3 generate_heatmap-eval.py "..\qupath\testis\tif\[#017] R18-964-17.tif" testis Atrophy 256 "..\qupath\testis\[#017] R18-964-17.ndpi.annotations.json"
 
 ## Image Preprocessing
 
@@ -62,13 +48,8 @@ first image is usally the largest. To extract just the first image, use the
 
 ## Files included
 
-* run_heatmap_generator.sh: automatically run heatmap generation tool for all pathologies
-  given tissue type and image.
 * generate_heatmap.py: Heatmap creation tool. Imposes a heatmap over an input image showing
   classifier predictions.
-* generate_heatmap-eval.py: Heatmap creation with evaluation tool. Imposes a heatmap over an input image showing
-  classifier predictions as well as drawing boxes around the "true" tiles that
-  overlap the given annotations.
 
 ## Authors
 
