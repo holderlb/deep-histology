@@ -1,7 +1,7 @@
 """
 Model Training
 
-Usage: python3 train.py <tile_dir> <tissue_type> <pathology> [<tile_size>] [<batch_size>]
+Usage: python3 train.py --tile_dir --tissue_type --pathologies --[tile_size] --[batch_size]
 
 Used to train tile classifying models. The arguments to the script
 are as follows:
