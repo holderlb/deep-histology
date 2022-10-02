@@ -45,9 +45,9 @@ Run the generatetiles.py script to generate tiles from the TIFF images
 according to the regions in the JSON file. See comments at top of script file
 for details. The typical command is:
 
-    python3 generatetiles.py --other '<image>.tif' '<image>.ndpi.annotations.json'
+    python3 generatetiles.py '<image>.tif' '<image>.ndpi.annotations.json'
 
-Usage: `python3 generatetiles2.py [--other] <image> <annotations>`
+Usage: `python3 generatetiles2.py <image> <annotations>`
 
 The program generates tiles from the given `<image>` according to the given
 `<annotations>`. The `<annotations>` file is a GeoJSON-formatted array from
@@ -61,14 +61,6 @@ The tile images are stored in the `tiles/<pathology>` subdirectory. The tile ima
 file name is of the form: `<image>_<NNNNNN>.jpg`, where `<NNNNNN>` is a unique 6-digit,
 0-padded number assigned to the tile image. The details about the tiles are
 appended to the file `tiles/tiles.csv` (image, location, pathology, color).
-
-If the optional `--other` argument is given, then the program also generates tiles
-that are nearby, but don't overlap, the annotation regions. The tiles are designated
-with pathology `OTHER\_PATHOLOGY` and color `OTHER\_COLOR` (set in code).
-
-Finally, if the global variable `gGenerateTiledImage=True`, the program generates
-the image `<image>_tiles.tif` that shows all the generated tiles as rectangles
-colored according to their pathology.
 
 NOTE: This program does not remove existing tiles, will overwrite
 existing tiles with the same name, and will append tile information to
