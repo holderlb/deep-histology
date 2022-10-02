@@ -5,14 +5,14 @@ healthy tissue annotated using the QuPath system. The images are tiled and
 each tile is classified based on its overlap of a region (different types
 of diseased and health tissue).
 
-1. Open qpproj project file in QuPath and check file location URIs.
+## Open qpproj project file in QuPath and check file location URIs.
 
 Chances are that the paths to the images need to be changed to their current
 location. QuPath usually finds them and suggests the appropriate changes.
 But if not, then you'll have to find them by double-clicking on the old paths.
 When done, quit QuPath.
 
-2. Extract regions from QuPath into GeoJSON format.
+## Extract regions from QuPath into GeoJSON format.
 
 Run QuPath Groovy script (script1.groovy) from the command-line on the
 qpproj project file containing the annotations. For example, on a Mac,
@@ -23,7 +23,7 @@ this command looks like:
 The JSON files will be written to the current directory. Move them to the
 directory where the NDPI images reside.
 
-3. Extract TIFF images from NDPI images.
+## Extract TIFF images from NDPI images.
 
 Use the ndpi2tiff tool available from
 https://www.imnc.in2p3.fr/pagesperso/deroulers/software/ndpitools/. These NDPI
@@ -32,8 +32,14 @@ image is the largest, so we extract just that one using the ",0" suffix. So,
 the command looks like:
 
     ndpi2tiff <image>,0
+    
+If you have this tool installed, you can automatically convert all ndpi images in a folder hierarchy to tif by using the "auto_run_evaluation.py" program.
+This program simply requires a source and desnation directory as program arguments. All files in the source directory folder tree must be ndpi files. 
+The folder tree can be arbitrarily wide or deep.
 
-4. Generate tiles from TIFF images overlapping JSON regions.
+    python3 auto_run_evaluation.py <src> <dst>
+
+## Generate tiles from TIFF images overlapping JSON regions.
 
 Run the generatetiles.py script to generate tiles from the TIFF images
 according to the regions in the JSON file. See comments at top of script file
