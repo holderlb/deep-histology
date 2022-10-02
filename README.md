@@ -17,10 +17,10 @@ Tool that is used to train deep convolutional nerual networks on a tile dataset
 generated from the Tiling tool. Trained models are then used as input for 
 the DHC tool. See `Training` directory.
 
-## Heatmap Generator
+## Evaluation
 
 Tool that tiles a tissue image and uses a pre-trained deep learning
-model to classify the tiles. See `Heatmap` directory.
+model to classify the tiles. See `Evaluation` directory.
 
 
 <p align="center">
