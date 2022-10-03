@@ -1,4 +1,4 @@
-# Heatmap Generation
+# Evaluation
 
 Usage: `python3 evaluate.py --image --pathology_colors --tissue_type --pathologies --[tile_size] --[downscale] --[generate_heatmap] --[output_dir]`
 
