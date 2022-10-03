@@ -297,7 +297,7 @@ def main1():
     print("Reading image:", image_file_name)
     gImage = imread(image_file_name)
     print("Loading model...")
-    model = load_model('../models/{}{}_classifier_new.h5'.format(tissue_type, gTileSize))
+    model = load_model('../models/{}{}_classifier.h5'.format(tissue_type, gTileSize))
     #model.summary()
     #model = tf.keras.models.Model([model.inputs], [model.layers[2].input, model.output])
     print("Classifying image...")
