@@ -45,7 +45,7 @@ def DFS_generate_heatmap(path, tissue_type):
                 if line != '':
                     print(line, end =" ")
             #if os.path.exists(os.path.split(src_image_path)[-1]) and os.path.isdir(os.path.split(src_image_path)[-1]):
-            #os.remove(src_image_path)
+            os.remove(src_image_path)
         else:
             if dir.lower() in data_map.keys():
                 tissue_type = dir.lower()
