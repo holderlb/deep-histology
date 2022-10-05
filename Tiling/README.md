@@ -37,7 +37,7 @@ If you have this tool installed, you can automatically convert all ndpi images i
 This program simply requires a source and desnation directory as program arguments. All files in the source directory folder tree must be ndpi files. 
 The folder tree can be arbitrarily wide or deep.
 
-    python3 auto_run_evaluation.py <src> <dst>
+    python3 convert_to_tiff.py <src> <dst>
 
 ## Generate tiles from TIFF images overlapping JSON regions.
 
