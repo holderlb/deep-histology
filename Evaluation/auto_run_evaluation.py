@@ -24,7 +24,9 @@ data_map = {"testis": {"colors": "../qupath/testis/tiles/colors.json", "patholog
             "prostate": {"colors": "../qupath/prostate/tiles/colors.json", "pathologies": ["Ignore", "Atrophy", "Collapsed_Prost", "Hyperplasia_Prost", "Vacuole"], "tissue_type": "prostate"},
             "female kidney": {"colors": "../qupath/kidney/female/tiles/colors.json", "pathologies": ["Ignore", "Cyst", "Reduced_Glomeruli", "Thickened_Bowmans_Capsule"], "tissue_type": "kidney/female"},
             "male kidney": {"colors": "../qupath/kidney/male/tiles/colors.json", "pathologies": ["Ignore", "Cyst", "Reduced_Glomeruli", "Thickened_Bowmans_Capsule"], "tissue_type": "kidney/male"},
-            "ovary": {"colors": "../qupath/ovary/tiles/colors.json", "pathologies": ["Ignore", "Antral_follicle", "Antral_follicle_wo_oocyte_ov", "Large_cyst_ov", "Preantral_follicle_ov", "Primordial_follicle", "Small_cyst_ov"], "tissue_type": "ovary"}}
+            "ovary": {"colors": "../qupath/ovary/tiles/colors.json", "pathologies": ["Ignore", "Antral_follicle", "Antral_follicle_wo_oocyte_ov", "Large_cyst_ov", "Preantral_follicle_ov", "Primordial_follicle", "Small_cyst_ov"], "tissue_type": "ovary"}
+            # any other pathologies can be added to this data map
+            }
 
 
 def DFS_generate_heatmap(path, tissue_type):
