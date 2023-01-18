@@ -26,3 +26,7 @@ model to classify the tiles. See `Evaluation` directory.
 <p align="center">
   <img src="figures/Heatmap.png" width="800" title="Heatmap Sample">
 </p>
+
+## Acknowledgments
+
+This work was supported by the John Templeton Foundation grant number 61174.
