@@ -15,7 +15,7 @@
 # - [<downscale>] optional variable for the factor in which the output image is
 #   downsampled. Since the output images are very large, this optional variable is
 #   usually necessary. This value can be any power of 2 greater than zero. The default
-#   value is 4, meaning that the output heatmap image will be 0.25 times the resolution
+#   value is 2, meaning that the output heatmap image will be 0.5 times the resolution
 #   of the original input tif image.
 # - [generetate_heatmap] optional boolean variable that determines whether a heatmap image will be created
 #   and saved for each input image. (Resource intensive).
@@ -70,8 +70,9 @@ else:
 gImage = None
 gTileSize = 256
 gTileIncrement = gTileSize // 2
-gConfidence = 0.95 # threshold on Prob(diseased) for tile to be classified as diseased
-downscale = 4
+gConfidence = 0.5 # threshold on Prob(diseased) for tile to be classified as diseased
+downscale = 2
+padding = 1536
 
 def rescale(tile_image, size):
     """Rescale given tile image to 256x256, which is what network expects."""
@@ -79,23 +80,37 @@ def rescale(tile_image, size):
 
 def contains_too_much_background(tile_image):
     """Return True if image contains more than 70% background color (off white)."""
-    h,w,c = tile_image.shape
+    d,h,w,c = tile_image.shape
     threshold = int(round(0.7 * h * w))
     lower = (201,201,201)
     upper = (255,255,255)
-    bmask = cv2.inRange(tile_image, lower, upper)
+    bmask = cv2.inRange(tile_image[0], lower, upper)
     if cv2.countNonZero(bmask) > threshold:
         return True
     return False
 
+def pyramid_tile(x, y, k=3):
+    global gTileSize, gTileIncrement, gConfidence, gImage, padding
+    image_pyramid = []
+    for i in range(k):
+        x1 = int(x + (gTileSize//2) - ((gTileSize//2) * (2**i)))
+        y1 = int(y + (gTileSize//2) - ((gTileSize//2) * (2**i)))
+        x2 = int(gTileSize * (2**i))
+        y2 = int(gTileSize * (2**i))
+        #assert x2 - x1 == int(xi[3] * (2**i))
+        image_pyramid.append(cv2.resize(gImage[y1:y1+y2, x1:x1+x2], (int(gTileSize), int(gTileSize)), interpolation=cv2.INTER_AREA))
+    return np.array(image_pyramid[::-1])
+
 def process_image(model, pathologies):
     """Extracts tiles from image and returns bounding box of all diseased tiles."""
-    global gTileSize, gTileIncrement, gImage, gConfidence
+    global gTileSize, gTileIncrement, gImage, gConfidence, padding
     height, width, channels = gImage.shape
-    num_tiles = int((height * width) / (gTileIncrement * gTileIncrement))
+    num_tiles = int(((height*2) * (width*2)) / (gTileIncrement * gTileIncrement))
     tile_count = 0
-    x1 = y1 = 0
-    x2 = y2 = gTileSize # yes, gTileSize, not (gTileSize - 1)
+    x1 = padding
+    y1 = padding
+    x2 = padding + gTileSize
+    y2 = padding + gTileSize # yes, gTileSize, not (gTileSize - 1)
     pred_tiles = [[] for _ in range(len(pathologies))]
     tiles_polygons = [[] for _ in range(len(pathologies))]
     heated_tiles_list = [[] for _ in range(len(pathologies))]
@@ -103,44 +118,37 @@ def process_image(model, pathologies):
     tile_polygons = []
     tile_images = []
     locs = []
-    print("Total tiles")
-    while y2 <= height: # yes, <=, not <
-        while x2 <= width:
-            tile_image = gImage[y1:y2, x1:x2]
+    print("Total tiles:", num_tiles)
+    while y2 <= height - padding: # yes, <=, not <
+        while x2 <= width - padding:
+            #tile_image = gImage[y1:y2, x1:x2]
+            tile_image = pyramid_tile(x1, y1)
             if (not contains_too_much_background(tile_image)):
                 tile_images.append(tile_image)
                 locs.append((x1, y1))
-                #tile_polygons.append([[x1,y1], [x1,y2], [x2,y2], [x2,y1], [x1,y1]])
             x1 += gTileIncrement
             x2 += gTileIncrement
             tile_count += 1
-            #if (tile_count % 1000) == 0 or tile_count == num_tiles:
-            #    print("  processed " + str(tile_count) + " of " + str(num_tiles) + " tiles", flush=True)
-            if len(tile_images) * gTileSize * gTileSize * 3 > gpu_mem * 0.5:
+            if len(tile_images) * gTileSize * gTileSize * 3 * 3 > gpu_mem * 0.5:
                 if len(tile_images) > 0:
                     probs = classify_tile(tile_images, model)
-                    #probs, heated_tiles = classify_tile(tile_images, model, pathologies)
-                    #probs, heated_tiles = np.mean(probs, axis=0).tolist(), [heated_tile.tolist() for heated_tile in heated_tiles]
                     tf.keras.backend.clear_session()
                     gc.collect()
-                    tissue_tile_count += np.sum((np.asarray(probs)[:,0] < 1-gConfidence) == True)
+                    tissue_tile_count += np.sum([(p[0]<1-gConfidence) and (any(p[1:]>gConfidence)) for p in np.asarray(probs)])
                     for i in range(1, len(pathologies)):
                         pred_tiles[i].extend([(x1, y1, gTileSize, gTileSize, prob[i]) for ((x1,y1), prob) in zip(locs, probs) if ((prob[i] > gConfidence) and (prob[0] < 1-gConfidence))])
-                        #tiles_polygons[i].extend([tile_polygon for tile_polygon, prob in zip(tile_polygons, probs) if prob[i] > gConfidence])
-                        #heated_tiles_list[i].extend([tile_polygon for tile_polygon, prob in zip(heated_tiles[i], probs) if prob[1] > gConfidence])
                 tile_images = []
                 locs = []
-                #tile_polygons = []
-        x1 = 0
-        x2 = gTileSize
+        x1 = padding
+        x2 = gTileSize + padding
         y1 += gTileIncrement
         y2 += gTileIncrement
     if len(tile_images) > 0:
         probs = classify_tile(tile_images, model)
         tf.keras.backend.clear_session()
         gc.collect()
-        tissue_tile_count += np.sum((np.asarray(probs)[:,0] < 1-gConfidence) == True)
-        for i in range(len(pathologies)):
+        tissue_tile_count += np.sum([((p[0]<1-gConfidence) and (any(p[1:]>gConfidence))) == True for p in np.asarray(probs)])
+        for i in range(1, len(pathologies)):
             pred_tiles[i].extend([(x1, y1, gTileSize, gTileSize, prob[i]) for ((x1,y1), prob) in zip(locs, probs) if ((prob[i] > gConfidence) and (prob[0] < 1-gConfidence))])
             #tiles_polygons[i].extend([tile_polygon for tile_polygon, prob in zip(tile_polygons, probs) if prob[i] > gConfidence])
             #heated_tiles_list[i].extend([tile_polygon for tile_polygon, prob in zip(heated_tiles[i], probs) if prob[1] > gConfidence])
@@ -179,13 +187,13 @@ def generate_heatmap(image, tiles, pathology, tissue_tile_count, colormap, downs
     image = cv2.resize(image, (image.shape[1]//downscale, image.shape[0]//downscale), interpolation=cv2.INTER_AREA)
     prob_sum = 0
     for (x1, y1, x_off, y_off, prob) in tiles:
-        heatmap[y1//downscale1:y1//downscale1+y_off//downscale1, x1//downscale1:x1//downscale1+x_off//downscale1] += 1 if prob >= gConfidence else 0
-        prob_sum += prob
+        heatmap[y1//downscale1:y1//downscale1+y_off//downscale1, x1//downscale1:x1//downscale1+x_off//downscale1] += 1 if prob >= 0.95 else 0
+        prob_sum += 1
     points_list = []
     ds_inc = gTileSize // gTileIncrement
     for i in range(heatmap.shape[0]):
         for j in range(heatmap.shape[1]):
-            if heatmap[i, j] >= (ds_inc ** 2) * 0.5:
+            if heatmap[i, j] >= (ds_inc ** 2) * 0.75:
                 points_list.append(Polygon([(j,i),(j+1,i),(j+1,i+1),(j,i+1)]))
     poly_array = unary_union(points_list)
     if type(poly_array) == MultiPolygon:
@@ -209,7 +217,7 @@ def generate_heatmap(image, tiles, pathology, tissue_tile_count, colormap, downs
     colored_heatmap = colored_heatmap.resize((image.shape[1], image.shape[0]))
     colored_heatmap = img_to_array(colored_heatmap)
     image = np.add(colored_heatmap * heatmap_intensity, image)
-    ratio = "Ratio of {} to non-{} tissue: {}".format(pathology, pathology, (prob_sum/tissue_tile_count if len(tiles) > 0 else 0))
+    ratio = ["Ratio of {} tiles to all tissue tiles: {}/{}={}".format(pathology, prob_sum, tissue_tile_count, (round(prob_sum/tissue_tile_count, 5) if len(tiles) > 0 else 0))]
     return image, ratio, polygons
 
 def read_tiles(tiles_file_name):
@@ -266,7 +274,7 @@ def get_args():
     parser.add_argument('--downscale', type=float, required=False, default=2, help='''Optional variable for the factor in which the output image is
                                                                                     downsampled. Since the output images are very large, this optional variable is
                                                                                     usually necessary. This value can be any power of 2 greater than zero. The default
-                                                                                    value is 4, meaning that the output heatmap image will be 0.25 times the resolution
+                                                                                    value is 2, meaning that the output heatmap image will be 0.25 times the resolution
                                                                                     of the original input tif image.''')
     parser.add_argument('--generate_heatmap', type=bool, required=False, default=False, help='''Optional boolean variable that determines whether a heatmap image will be created
                                                                                              and saved for each input image. (Resource intensive''')
@@ -274,7 +282,7 @@ def get_args():
     return parser.parse_args()
 
 def main1():
-    global gTileSize, gTileIncrement, downscale, gImage
+    global gTileSize, gTileIncrement, downscale, gImage, padding
     args = get_args()
     print(args)
     #exit()
@@ -296,10 +304,15 @@ def main1():
     image_file_root = os.path.splitext(image_file_name)[0]
     print("Reading image:", image_file_name)
     gImage = imread(image_file_name)
+    #gImage = np.pad(gImage, ((padding, padding), (padding, padding), (0,0)), 'constant', constant_values=0)
     print("Loading model...")
-    model = load_model('../models/{}{}_classifier.h5'.format(tissue_type, gTileSize))
+    if len(physical_devices) > 1:
+        mirrored_strategy = tf.distribute.MirroredStrategy(["GPU:{}".format(i) for i in range(len(physical_devices))])
+        with mirrored_strategy.scope():
+            model = load_model('../Training/models/{}{}_classifier_SA_30.h5'.format(tissue_type, gTileSize))
+    else:
+        model = load_model('../Training/models/{}{}_classifier_SA_30.h5'.format(tissue_type, gTileSize))
     #model.summary()
-    #model = tf.keras.models.Model([model.inputs], [model.layers[2].input, model.output])
     print("Classifying image...")
     start = time.time()
     tiles_list, tiles_polygons, heated_tiles_list, tissue_tile_count = process_image(model, pathologies)
@@ -321,16 +334,12 @@ def main1():
         for i in range(1, len(pathologies)):
             for tile in tiles_list[i]:
                 f.write(",".join([pathologies[i]] + [str(x) for x in tile]) + '\n')
-    #write_geojson(output_json_file_name, tiles_polygons, pathologies, colors)
-    #exit()
-    #tiles = read_tiles(image_file_root + "_{}_tiles.csv".format(pathology))
     if os.path.exists(output_txt_file_name):
         os.remove(output_txt_file_name)
 
     print("Highlighting diseased tiles in image...")
     for i in range(1, len(pathologies)):
-        image, ratio, intersection = generate_heatmap(gImage, tiles_list[i], pathologies[i], tissue_tile_count, highlighting, downscale=downscale)
-        #image, ratio, intersection = generate_heatmap2(gImage, tiles_list[i], pathologies[i], heated_tiles_list[i], highlighting, downscale=downscale)
+        image, ratios, intersection = generate_heatmap(gImage, tiles_list[i], pathologies[i], tissue_tile_count, highlighting, downscale=downscale)
         for m in intersection:
             if type(m) is Polygon:
                 m = make_valid(m)
@@ -342,12 +351,12 @@ def main1():
                         if type(val_m) is Polygon:
                             pathologies_polygons[i].append(list(val_m.exterior.coords))
         with open(output_txt_file_name, 'a') as f:
-            f.write(ratio + '\n')
-            #f.write("Predicted {} tiles with confidence > 0.5: {}".format(pathologies[i], [j[-1] > 0.5 for j in tiles_list[i]].count(True)) + '\n')
-            f.write("Predicted {} tiles with confidence > 0.95: {}".format(pathologies[i], [j[-1] > 0.95 for j in tiles_list[i]].count(True)) + '\n\n')
-        output_image_file_name = image_file_root + '_' + pathologies[i] + "_heatmap.jpg"
-        print("Writing highlighted image...")
+            f.write("Predicted {} tiles with confidence > 0.95: {}".format(pathologies[i], [j[-1] > 0.95 for j in tiles_list[i]].count(True)) + '\n')
+            f.write("Predicted {} tiles with confidence > 0.5: {}".format(pathologies[i], [j[-1] > 0.5 for j in tiles_list[i]].count(True)) + '\n')
+            f.write("Predicted {} instances: {}".format(pathologies[i], len(pathologies_polygons[i])) + '\n\n')
         if gen_image:
+            print("Writing highlighted image...")
+            output_image_file_name = image_file_root + '_' + pathologies[i] + "_heatmap.jpg"
             image = array_to_img(image)
             image.save(output_image_file_name, compression="jpeg", quality=80)
         print("Done.")
