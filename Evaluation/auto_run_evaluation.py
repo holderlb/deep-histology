@@ -33,7 +33,7 @@ def DFS_generate_heatmap(path, tissue_type):
         if os.path.isfile(os.path.join(path, dir)) and os.path.splitext(dir)[1] == '.tif':
             src_image_path = os.path.join(path, dir)
             print(src_image_path, tissue_type)
-            bashCommand = ["python3", "evaluate_SA.py", 
+            bashCommand = ["python3", "evaluate.py", 
                             "--image", src_image_path, 
                             "--pathology_colors", data_map[tissue_type.lower()]["colors"],
                             "--tissue_type", data_map[tissue_type.lower()]["tissue_type"],
