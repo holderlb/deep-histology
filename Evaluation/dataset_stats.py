@@ -2,7 +2,7 @@
 #
 # Usage: python3 dataset_stats.py [src_dir]
 #
-# - <image> path to the dataset to be processed.
+# - [src_dir] path to the dataset to be processed. 
 #
 # Authors: Colin Greeley and Larry Holder, Washington State University
 
