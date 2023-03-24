@@ -1,6 +1,6 @@
 # Evaluation
 
-Usage: `python3 evaluate.py --image --pathology_colors --tissue_type --pathologies --[tile_size] --[downscale] --[generate_heatmap] --[output_dir]`
+Usage: `python3 evaluate.py --image --pathology_colors --tissue_type --pathologies --[tile_size] --[downscale] --[qupath_predictions] --[output_dir]`
 
 Requires: python 3.8+, numpy, tensorflow, opencv-python, scikit-image, imagecodecs\
 Recommendation: running tensorflow-gpu with anaconda for faster runtime
@@ -18,8 +18,8 @@ as well as predictions in the form of qupath annotations and a heatmap image. Th
   usually necessary. This value can be any power of 2 greater than zero. The default
   value is 4, meaning that the output heatmap image will be 0.25 times the resolution
   of the original input tif image.
-* `--generetate_heatmap` Optional. Boolean variable that determines whether a heatmap image will be created
-   and saved for each input image. (Resource intensive).
+* `--qupath_predictions` Optional. Boolean variable that determines whether qupath predictions will be created or not.
+   Super-pixel predictions are created by merging contiguous tiles onto pathology instances. (Resource intensive).
 * `--output_dir` Optional. File path to specify where all program outputs will go to
 
 ## Run program
