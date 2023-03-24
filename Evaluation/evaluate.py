@@ -283,7 +283,6 @@ def main1():
         tissue_type = tissue_type.replace('/', '-')
     if ' ' in tissue_type:
         tissue_type = tissue_type.replace(' ', '-')
-    highlighting = "plasma"
     image_file_root = os.path.splitext(image_file_name)[0]
     print("Reading image:", image_file_name)
     gImage = imread(image_file_name)
@@ -326,7 +325,7 @@ def main1():
 
     print("Highlighting diseased tiles in image...")
     for i in range(1, len(pathologies)):
-        ratios, intersection = generate_output(gImage, tiles_list[i], pathologies[i], tissue_tile_count, highlighting, downscale=downscale, generate_polygons=qupath_predictions)
+        ratios, intersection = generate_output(gImage, tiles_list[i], pathologies[i], tissue_tile_count, downscale=downscale, generate_polygons=qupath_predictions)
         for m in intersection:
             if type(m) is Polygon:
                 m = make_valid(m)
