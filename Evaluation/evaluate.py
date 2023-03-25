@@ -173,7 +173,7 @@ def classify_tile(tile_images, model):
     pred = np.mean(pred, axis=0)
     return pred.tolist()
 
-def generate_output(image, tiles, pathology, tissue_tile_count, downscale, generate_polygons):
+def generate_output(image, tiles, pathology, tissue_tile_count, downscale, generate_polygons=True):
     """Generate QuPath predictions along with tile stats."""
     global gTileSize, gTileIncrement, gConfidence
     downscale1 = gTileIncrement
@@ -183,6 +183,7 @@ def generate_output(image, tiles, pathology, tissue_tile_count, downscale, gener
     for (x1, y1, x_off, y_off, prob) in tiles:
         heatmap[y1//downscale1:y1//downscale1+y_off//downscale1, x1//downscale1:x1//downscale1+x_off//downscale1] += 1 if prob >= 0.95 else 0
         prob_sum += 1
+    polygons = []   
     if generate_polygons:
         points_list = []
         ds_inc = gTileSize // gTileIncrement
@@ -195,10 +196,6 @@ def generate_output(image, tiles, pathology, tissue_tile_count, downscale, gener
             polygons = [geom for geom in poly_array.geoms]
         elif type(poly_array) == Polygon:
             polygons = [poly_array]
-        else:
-            polygons = []
-    else:
-        polygons = []
     polygons = [Polygon(np.array(p.exterior.coords) * downscale1) for p in polygons]
     ratio = ["Ratio of {} tiles to all tissue tiles: {}/{}={}".format(pathology, prob_sum, tissue_tile_count, (round(prob_sum/tissue_tile_count, 5) if len(tiles) > 0 else 0))]
     return ratio, polygons
