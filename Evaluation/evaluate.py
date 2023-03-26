@@ -232,7 +232,7 @@ def write_geojson(filename, tiles_polygons, pathologies, colors):
                 "isLocked": False
             }
         }
-    for i in range(1, len(pathologies)):
+    for i in range(1, len(pathologies)-1):
         for tile_polygons in tiles_polygons[i]:
             new_obj = make_obj()
             new_obj["geometry"]["coordinates"] = [tile_polygons]
