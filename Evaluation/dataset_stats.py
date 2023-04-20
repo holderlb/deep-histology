@@ -2,7 +2,7 @@
 #
 # Usage: python3 dataset_stats.py [src_dir]
 #
-# - [src_dir] path to the dataset to be processed. 
+# - [src_dir] path to the dataset to be processed.
 #
 # Authors: Colin Greeley and Larry Holder, Washington State University
 
@@ -11,6 +11,7 @@ import os
 import sys
 import numpy as np
 import csv
+import matplotlib.pyplot as plt
 
 
 def get_data_map():
@@ -66,28 +67,62 @@ def calculate_ratios(data_map):
                         data_map[tissue_type][pathology][metric] = [x/y for x,y in zip(data_map[tissue_type][pathology]["50%_confidence_tile_count"], np.sum([data_map[tissue_type][pt]["50%_confidence_tile_count"] for pt in data_map[tissue_type].keys() if pt != "name"], axis=0))]
                     
 def write_tissue_stats(src_dir, control_data_map, disease_data_map):
-    metric = "95%_confidence_tile_count"
+    std_threshold = 2
+    metric = "95%_confidence_tile_ratio"
+    out_dir2 = os.path.join(src_dir, os.path.split(src_dir)[-1] + '_summary.csv')
+    summary_list_split = [["Percent diseased"]+list(disease_data_map.keys()), ["Control"],["Experimental"]]
+    summary_list = [["Percent diseased"]+list(disease_data_map.keys()), ["Control"],["Experimental"]]
     for tissue_type in disease_data_map.keys():
-        out_dir = os.path.join(src_dir, os.path.split(src_dir)[-1] + '_' + tissue_type + '_experimental_group_stats.csv')
-        row_list = [["image_name"] + list(disease_data_map[tissue_type].keys())[1:-1]]
-        for i in range(len(disease_data_map[tissue_type]["name"])):
-            new_row = [disease_data_map[tissue_type]["name"][i]] + [round((disease_data_map[tissue_type][pa][metric][i] - np.mean(control_data_map[tissue_type][pa][metric],axis=0))/np.std(control_data_map[tissue_type][pa][metric],axis=0), 2) for pa in list(disease_data_map[tissue_type].keys())[1:-1]]
-            row_list.append(new_row)
-        #out_dir = os.path.join(src_dir, os.path.split(src_dir)[-1] + '_' + tissue_type + '_stats.csv')
-        with open(out_dir, 'w', newline='') as file:
-            writer = csv.writer(file, dialect='excel')
-            writer.writerows(row_list)
-            
-            
-        out_dir = os.path.join(src_dir, os.path.split(src_dir)[-1] + '_' + tissue_type + '_control_group_stats.csv')
+        disease_count = 0
+        out_dir1 = os.path.join(src_dir, os.path.split(src_dir)[-1] + '_' + tissue_type + '_control_group_stats.csv')
         row_list = [["image_name"] + list(control_data_map[tissue_type].keys())[1:-1]]
         for i in range(len(control_data_map[tissue_type]["name"])):
             new_row = [control_data_map[tissue_type]["name"][i]] + [round((control_data_map[tissue_type][pa][metric][i] - np.mean(control_data_map[tissue_type][pa][metric],axis=0))/np.std(control_data_map[tissue_type][pa][metric],axis=0), 2) for pa in list(control_data_map[tissue_type].keys())[1:-1]]
+            disease_count += any(np.asarray(new_row[1:]) >= std_threshold)
             row_list.append(new_row)
-        #out_dir = os.path.join(src_dir, os.path.split(src_dir)[-1] + '_' + tissue_type + '_stats.csv')
-        with open(out_dir, 'w', newline='') as file:
+        summary_list_split[1].append("{}/{}".format(disease_count,len(control_data_map[tissue_type]["name"])))
+        summary_list[1].append(round(disease_count/len(control_data_map[tissue_type]["name"]), 2))
+        with open(out_dir1, 'w', newline='') as file:
             writer = csv.writer(file, dialect='excel')
             writer.writerows(row_list)
+            
+        disease_count = 0
+        out_dir1 = os.path.join(src_dir, os.path.split(src_dir)[-1] + '_' + tissue_type + '_experimental_group_stats.csv')
+        row_list = [["image_name"] + list(disease_data_map[tissue_type].keys())[1:-1]]
+        for i in range(len(disease_data_map[tissue_type]["name"])):
+            new_row = [disease_data_map[tissue_type]["name"][i]] + [round((disease_data_map[tissue_type][pa][metric][i] - np.mean(control_data_map[tissue_type][pa][metric],axis=0))/np.std(control_data_map[tissue_type][pa][metric],axis=0), 2) for pa in list(disease_data_map[tissue_type].keys())[1:-1]]
+            disease_count += any(np.absolute(new_row[1:]) >= std_threshold)
+            row_list.append(new_row)
+        summary_list_split[2].append("{}/{}".format(disease_count,len(disease_data_map[tissue_type]["name"])))
+        summary_list[2].append(round(disease_count/len(disease_data_map[tissue_type]["name"]), 2))
+        with open(out_dir1, 'w', newline='') as file:
+            writer = csv.writer(file, dialect='excel')
+            writer.writerows(row_list)
+            
+    with open(out_dir2, 'w', newline='') as file:
+        writer = csv.writer(file, dialect='excel')
+        writer.writerows(summary_list_split)
+
+def write_tissue_results(src_dir, control_data_map, disease_data_map):
+    metric = "95%_confidence_tile_count"
+    for tissue_type in disease_data_map.keys():
+        out_dir1 = os.path.join(src_dir, os.path.split(src_dir)[-1] + '_' + tissue_type + '_control_group_results.csv')
+        row_list = [["image_name"] + list(control_data_map[tissue_type].keys())[1:]]
+        for i in range(len(control_data_map[tissue_type]["name"])):
+            new_row = [control_data_map[tissue_type]["name"][i]] + [control_data_map[tissue_type][pa][metric][i] for pa in list(control_data_map[tissue_type].keys())[1:]]
+            row_list.append(new_row)
+        with open(out_dir1, 'w', newline='') as file:
+            writer = csv.writer(file, dialect='excel')
+            writer.writerows(row_list)
+            (src_dir, os.path.split(src_dir)[-1] + '_' + tissue_type + '_experimental_group_results.csv')
+        row_list = [["image_name"] + list(disease_data_map[tissue_type].keys())[1:]]
+        for i in range(len(disease_data_map[tissue_type]["name"])):
+            new_row = [disease_data_map[tissue_type]["name"][i]] + [disease_data_map[tissue_type][pa][metric][i] for pa in list(disease_data_map[tissue_type].keys())[1:]]
+            row_list.append(new_row)
+        with open(out_dir1, 'w', newline='') as file:
+            writer = csv.writer(file, dialect='excel')
+            writer.writerows(row_list)
+            
             
 def write_dataset_stats(src_dir, control_data_map, disease_data_map):
     out_dir = os.path.join(src_dir, os.path.split(src_dir)[-1] + '_stats.csv')
@@ -133,6 +168,7 @@ if __name__ == "__main__":
     
     write_dataset_stats(src_dir, control_data_map, disease_data_map)
     write_tissue_stats(src_dir, control_data_map, disease_data_map)
+    write_tissue_results(src_dir, control_data_map, disease_data_map)
     
     
         
