@@ -23,9 +23,14 @@ the Evaluation tool. See `Training` directory.
 Tool that tiles a tissue image and uses a pre-trained deep learning
 model to classify the tiles as well as show statistics between control and experimental groups. See `Evaluation` directory.
 
-
+### Heatmap sample of model predictions
 <p align="center">
   <img src="figures/Heatmap.png" width="800" title="Heatmap Sample">
+</p>
+
+### Class specific sample of model predictions
+<p align="center">
+  <img src="figures/prostate_example.png" width="800" title="Heatmap Sample">
 </p>
 
 ## Acknowledgements
