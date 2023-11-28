@@ -8,19 +8,20 @@ Research on deep learning for histology. The full pipeline is used to decompose 
 
 ## Tiling
 
-Tool that generates training tiles from images annotated using QuPath.
+Tool that is used for preprocessing ndpi images into tiff images for entire directories and also  
+generates training tiles from images annotated using QuPath.
 See `Tiling` directory.
 
 ## Training
 
 Tool that is used to train deep convolutional nerual networks on a tile dataset
 generated from the Tiling tool. Trained models are then used as input for 
-the DHC tool. See `Training` directory.
+the Evaluation tool. See `Training` directory.
 
 ## Evaluation
 
 Tool that tiles a tissue image and uses a pre-trained deep learning
-model to classify the tiles. See `Evaluation` directory.
+model to classify the tiles as well as show statistics between control and experimental groups. See `Evaluation` directory.
 
 
 <p align="center">
