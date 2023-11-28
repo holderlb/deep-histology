@@ -33,8 +33,9 @@ the command looks like:
 
     ndpi2tiff <image>,0
     
-If you have this tool installed, you can automatically convert all ndpi images in a folder hierarchy to tif by using the "auto_run_evaluation.py" program.
-This program simply requires a source and desnation directory as program arguments. All files in the source directory folder tree must be ndpi files. 
+convert_to_tiff.py is a program that will automatically convert all ndpi images in a folder hierarchy to tiff by using the "auto_run_evaluation.py" program.
+Running this is required before all steps in the deep learning pipeline, since the deep learning programs only work with tiff files.
+This program requires a source and desnation directory as program arguments. All files in the source directory folder tree must be ndpi files. 
 The folder tree can be arbitrarily wide or deep.
 
     python3 convert_to_tiff.py <src> <dst>
