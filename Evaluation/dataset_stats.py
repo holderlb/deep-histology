@@ -156,6 +156,9 @@ if __name__ == "__main__":
         src_dir = src_dir[:-1]
     clear_files(src_dir)
     
+    # important! 
+    # make sure the order of the control and experimental directories are correct. 
+    # Change the index numbers (0 and 1) to match with the order these folders show up alphabetically.
     control_dir = os.path.join(src_dir, os.listdir(src_dir)[0])
     disease_dir = os.path.join(src_dir, os.listdir(src_dir)[1])
     

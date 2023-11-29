@@ -15,8 +15,8 @@ import shutil
 import subprocess
 
 
-src_dir = sys.argv[1]
-dst_dir = sys.argv[2]
+src_dir = sys.argv[1] # example: "/home/data/epi/MG/"
+dst_dir = sys.argv[2] # example: "./deployment/MG/"
 
 
 shutil.copytree(src_dir, dst_dir)

@@ -1,6 +1,6 @@
 # Evaluation
 
-Usage: `python3 evaluate.py --image --pathology_colors --tissue_type --pathologies --[tile_size] --[downscale] --[qupath_predictions] --[output_dir]`
+    python3 evaluate.py --image --pathology_colors --tissue_type --pathologies --[tile_size] --[downscale] --[qupath_predictions] --[output_dir]
 
 Requires: python 3.8+, numpy, tensorflow, opencv-python, scikit-image, imagecodecs\
 Recommendation: running tensorflow-gpu with anaconda for faster runtime
@@ -31,6 +31,14 @@ To run the evaluation for a singe image, the `evaluate.py` program needs to be r
 To automatically run the evaluation for a directory of tif images, you can use the `auto_run_evaluations.py` program. This program simply requires a source directory as program arguments. If the tissue type(s) are not apart of the file path to any tif file, the tissue type(s) can be specified through the second program argument. All files in the source directory folder tree must be tif files. The folder tree can be arbitrarily wide or deep.
 
     python3 auto_run_evaluation.py <src> [<tissue_type>]
+
+## Dataset Statistics Postprecessing
+
+    python3 dataset_stats.py <src>
+
+dataset_stats.py outputs csv files with statistics about all pathology predictions for both the control group and experimental group of any folder in which auto_run_evaluation.py has been run on. When running dataset_stats.py on any folder,
+the subdirectories of that folder must be named "control" and "experimental", each containing the subsequent tissue folders in which auto_run_evaluation.py has been run. The csv files will be written in the <src> folder provided.
+
 
 ## Image Preprocessing
 
