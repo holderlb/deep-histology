@@ -39,6 +39,10 @@ This program requires a source and desnation directory as program arguments. All
 The folder tree can be arbitrarily wide or deep.
 
     python3 convert_to_tiff.py <src> <dst>
+    
+convert_to_tiff_file.py does the same thing as convert_to_tiff.py except only for one file at a time, whereas convert_to_tiff.py runs on a directory of tissue subdirectories.
+
+    python3 convert_to_tiff_file.py <src> <dst>
 
 ## Generate tiles from TIFF images overlapping JSON regions.
 
