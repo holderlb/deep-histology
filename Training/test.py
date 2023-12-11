@@ -16,7 +16,7 @@ Authors: Colin Greeley and Larry Holder, Washington State University
 """
 
 import tensorflow as tf
-from image_classifier_SA import Classifier
+from image_classifier import Classifier
 import argparse
 import pandas as pd
 import numpy as np
